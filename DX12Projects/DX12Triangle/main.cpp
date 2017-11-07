@@ -326,7 +326,11 @@ bool InitD3D() {
 	Vertex vList[] = {
 		{ { 0.0f, 0.5f, 0.5f } },
 		{ { 0.5f, -0.5f, 0.5f } },
-		{ { -0.5f, -0.5f, 0.5f } }
+		{ { -0.5f, -0.5f, 0.5f } },
+		
+		{ {	-1.0f, 1.0f, 0.5f } },
+		{ { -0.5f, 1.05f, 0.5f } },
+		{ { -0.95f, -0.5f, 0.5f } }
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -411,7 +415,7 @@ bool InitD3D() {
 	device->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
 		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(1000000),
+		&CD3DX12_RESOURCE_DESC::Buffer(11*8),
 		D3D12_RESOURCE_STATE_COPY_DEST,	//<-- Initial state
 		nullptr, //<-- clear value
 		IID_PPV_ARGS(&queryResult)
@@ -489,28 +493,22 @@ void Update() {
 	// Update app logic.
 }
 
-char bufferData[8];
+D3D12_QUERY_DATA_PIPELINE_STATISTICS* bufferData;
 
 void UpdatePipeline() {
 	// This is where we add commands to the command list
 	HRESULT hr;
 	WaitForPreviousFrame(); // Wait for gpu to finish using allocator before reset
 
-	//DEBUG handle queryResult:
-	bufferData[0] = 0x0A;
-	bufferData[1] = 0x0B;
-	bufferData[2] = 0x0C;
-	bufferData[3] = 0x0D;
-	bufferData[4] = 0x0E;
-	bufferData[5] = 0x0F;
-	bufferData[6] = 0x01;
-	bufferData[7] = 0x02;
-
 	D3D12_RANGE range = {};
 	range.Begin = 0;
-	range.End = 8;
+	range.End = 11*8;
 	queryResult->Map(0, &range, reinterpret_cast<void**>(&bufferData));
+	D3D12_RANGE emptyRange = { 0,0 };
+	queryResult->Unmap(0, &emptyRange);
 	//END DEBUG
+
+	//auto dbugData = reinterpret_cast<D3D12_QUERY_DATA_PIPELINE_STATISTICS*>(bufferData);
 
 	// Resetting command allocator. Freeing memory command list was stored in on GPU.
 	hr = commandAllocator[frameIndex]->Reset();
@@ -558,6 +556,7 @@ void UpdatePipeline() {
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 	commandList->DrawInstanced(3, 1, 0, 0);
+	commandList->DrawInstanced(3, 1, 3, -1);
 
 	commandList->EndQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
 
@@ -647,18 +646,14 @@ void mainloop() {
 
 		if (argPipelineStat) {
 			if (nanoSec / 100000 > probeCount * TEST_PROBE_INTERVAL_MS) {
-				
-				/*
-				commandList->BeginQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-				
-				commandList->EndQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-
-				commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_PREDICATION, D3D12_RESOURCE_STATE_COPY_DEST));
-				commandList->ResolveQueryData(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, queryResult, 0);
-				commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PREDICATION));
-
-				*/
+				/* TODO: implement this fully
+				if (bufferData != nullptr) {
+					item.Add("CInvocations", force_string(bufferData->CInvocations));
+					item.Add("IAVertices", force_string(bufferData->IAVertices));
+					
+				}
 				auto d = "bug";
+				*/
 			}
 		}
 

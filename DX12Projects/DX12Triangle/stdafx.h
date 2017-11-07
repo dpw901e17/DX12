@@ -16,6 +16,7 @@
 #include <chrono>
 #include "wmiaccess.h"
 #include <fstream>
+#include <sstream>	//<-- for converting "any" types to string (e.g. interger types)
 
 // Only call release if object exists.
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
@@ -87,3 +88,12 @@ void WaitForPreviousFrame();
 //timing stuff:
 void Arrange_Test_Data(const std::string* dataArr, WMIDataItem* item);
 void SaveToFile(const std::string& file, const std::string& data);
+
+//util
+template<typename T>
+auto force_string(T arg)
+{
+	std::stringstream ss;
+	ss << arg;
+	return ss.str();
+}
