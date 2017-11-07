@@ -5,6 +5,7 @@
 #define TEST_CSV_ARG "-csv"
 #define TEST_PERFMON_ARG "-perfmon"
 #define TEST_TIME_ARG "-sec"
+#define TEST_PIPELINE_STATISTICS "-stat"
 
 void Cleanup() {
 	// wait for gpu to finish all of its frames
@@ -26,6 +27,8 @@ void Cleanup() {
 	SAFE_RELEASE(pipelineStateObject);
 	SAFE_RELEASE(rootSignature);
 	SAFE_RELEASE(vertexBuffer);
+	SAFE_RELEASE(queryResult);
+	SAFE_RELEASE(queryHeap);
 
 	for (int i = 0; i < frameBufferCount; i++) {
 		SAFE_RELEASE(renderTargets[i]);
@@ -56,6 +59,20 @@ void WaitForPreviousFrame() {
 
 bool InitD3D() {
 	HRESULT hr;
+
+	ID3D12Debug* debugController;
+	ID3D12Debug1* debug1Controller;
+	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+	if (FAILED(hr)) {
+		std::cout << "Failed to initialize debug controller!" << std::endl;
+		return false;
+	}
+	else if (SUCCEEDED(hr)) {
+		debugController->EnableDebugLayer();
+		debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
+		debug1Controller->SetEnableGPUBasedValidation(true);
+	}
+
 
 	// -- Create the Device -- //
 	IDXGIFactory4* dxgiFactory;
@@ -380,6 +397,26 @@ bool InitD3D() {
 	scissorRect.bottom = Height;
 
 
+	//create a query heap for pipeline statistics
+	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+	queryHeapDesc.Count = 1;
+	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
+	
+	hr = device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&queryHeap));
+	if (FAILED(hr)) {
+		return false;
+	}
+
+	//create resource buffer for pipeline statistics
+	device->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(1000000),
+		D3D12_RESOURCE_STATE_COPY_DEST,	//<-- Initial state
+		nullptr, //<-- clear value
+		IID_PPV_ARGS(&queryResult)
+	);
+
 	return true;
 }
 
@@ -452,12 +489,30 @@ void Update() {
 	// Update app logic.
 }
 
+char bufferData[8];
+
 void UpdatePipeline() {
 	// This is where we add commands to the command list
 	HRESULT hr;
 	WaitForPreviousFrame(); // Wait for gpu to finish using allocator before reset
 
-							// Resetting command allocator. Freeing memory command list was stored in on GPU.
+	//DEBUG handle queryResult:
+	bufferData[0] = 0x0A;
+	bufferData[1] = 0x0B;
+	bufferData[2] = 0x0C;
+	bufferData[3] = 0x0D;
+	bufferData[4] = 0x0E;
+	bufferData[5] = 0x0F;
+	bufferData[6] = 0x01;
+	bufferData[7] = 0x02;
+
+	D3D12_RANGE range = {};
+	range.Begin = 0;
+	range.End = 8;
+	queryResult->Map(0, &range, reinterpret_cast<void**>(&bufferData));
+	//END DEBUG
+
+	// Resetting command allocator. Freeing memory command list was stored in on GPU.
 	hr = commandAllocator[frameIndex]->Reset();
 	if (FAILED(hr)) {
 		Running = false;
@@ -489,6 +544,13 @@ void UpdatePipeline() {
 	const float clearColor[] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
+	//Pipeline statistics stuff
+	commandList->BeginQuery(
+		queryHeap, //<-- heap containing the query
+		D3D12_QUERY_TYPE_PIPELINE_STATISTICS,	//<--- type of query
+		0	//<--- index of query (there is only 1)
+	);
+
 	// draw triangle
 	commandList->SetGraphicsRootSignature(rootSignature);
 	commandList->RSSetViewports(1, &viewport);
@@ -496,6 +558,12 @@ void UpdatePipeline() {
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 	commandList->DrawInstanced(3, 1, 0, 0);
+
+	commandList->EndQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+
+	//commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_PREDICATION, D3D12_RESOURCE_STATE_COPY_DEST));
+	commandList->ResolveQueryData(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, queryResult, 0);
+	//commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PREDICATION));
 
 	// Transition current index back to present state
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -511,7 +579,6 @@ void Render(long long timestamp) {
 	HRESULT hr;
 
 	UpdatePipeline(); // set command lists
-
 
 					  // Create array of command lists. Only 1 here since single threading
 	ID3D12CommandList* ppCommandLists[] = { commandList };
@@ -531,8 +598,6 @@ void Render(long long timestamp) {
 	if (FAILED(hr)) {
 		Running = false;
 	}
-
-
 }
 
 void mainloop() {
@@ -554,7 +619,7 @@ void mainloop() {
 	_bstr_t probe_properties[] = { "Identifier", "Value", "SensorType" };	//<-- determined by OpenHardwareMonitor
 
 
-	while (argTime > nanoSec / 1000000000) {
+	while (argTime == 0 || argTime > nanoSec / 1000000000) {
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			// Exit when "X" icon is pressed
 			if (msg.message == WM_QUIT)
@@ -571,15 +636,37 @@ void mainloop() {
 		lastUpdate = Clock::now();
 		Update();
 		Render(nanoSec);
+		WMIDataItem item;
 
 		if (argCsv) {
 			if (nanoSec / 1000000 > probeCount * TEST_PROBE_INTERVAL_MS)
 			{
-				++probeCount;
-				auto item = wmiAccessor.QueryItem("sensor", probe_properties, 3, Arrange_Test_Data);
-				item.Add("Timestamp", std::to_string(nanoSec));
-				database.Add(item);
+				item = wmiAccessor.QueryItem("sensor", probe_properties, 3, Arrange_Test_Data);
 			}
+		}
+
+		if (argPipelineStat) {
+			if (nanoSec / 100000 > probeCount * TEST_PROBE_INTERVAL_MS) {
+				
+				/*
+				commandList->BeginQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+				
+				commandList->EndQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+
+				commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_PREDICATION, D3D12_RESOURCE_STATE_COPY_DEST));
+				commandList->ResolveQueryData(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, queryResult, 0);
+				commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(queryResult, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PREDICATION));
+
+				*/
+				auto d = "bug";
+			}
+		}
+
+		if (argCsv || argPipelineStat) {
+			++probeCount;
+			item.Add("Timestamp", std::to_string(nanoSec));
+			//TODO: add FPS to item in some way
+			database.Add(item);
 		}
 
 	} //END while
@@ -659,6 +746,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR exeArg, int nShowCmd) {
 		}
 		else if (a == TEST_TIME_ARG) {
 			argTime = stoi(args[i + 1]);
+		}
+		else if (a == TEST_PIPELINE_STATISTICS) {
+			argPipelineStat = true;
 		}
 	}
 

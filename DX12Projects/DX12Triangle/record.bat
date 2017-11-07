@@ -6,7 +6,7 @@ set /p seconds="time in seconds: "
 
 REM OpenHardwareMonitor
 start C:\PROGRA~2\OpenHardwareMonitor\OpenHardwareMonitor.exe 
-timeout 5
+timeout 10
 DX12Triangle.exe -csv -sec %seconds%
 taskkill /IM OpenHardwareMonitor.exe
 

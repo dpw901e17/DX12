@@ -23,6 +23,7 @@
 //exeArgs
 bool argCsv = false;
 bool argPerfmon = false;
+bool argPipelineStat = false;
 int argTime = 0;
 
 // Attributes
@@ -58,13 +59,18 @@ UINT64 fenceValue[frameBufferCount];
 int frameIndex; // Current frame to render to
 int rtvDescriptorSize; // Size of rtv descriptor 
 
-					   // Drawing! Globals
+// Drawing! Globals
 ID3D12PipelineState* pipelineStateObject;
 ID3D12RootSignature* rootSignature;
 D3D12_VIEWPORT viewport;
 D3D12_RECT scissorRect;
 ID3D12Resource* vertexBuffer;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
+//Pipeline statistics query:
+ID3D12QueryHeap* queryHeap;
+ID3D12Resource* queryResult;
+ID3D12PipelineState* queryState;
 
 struct Vertex {
 	DirectX::XMFLOAT3 pos;
