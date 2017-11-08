@@ -22,10 +22,12 @@
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
 
 //exeArgs
-bool argCsv = false;
-bool argPerfmon = false;
-bool argPipelineStat = false;
-int argTime = 0;
+bool argCsv = false;				//<-- record OpenHardwareMonitor data in a data_[timestamp].csv file
+bool argPerfmon = false;			//<-- this run is meant to be used for data colletion with microsoft performance monitor (not used in code atm)
+bool argPipelineStat = false;		//<-- collect pipeline statistics?
+bool argPipelineStatDyn = false;	//<-- =||= dynamically (i.e. collect once per probe. If false, the scene is assumed to be static, and data is only collected once)
+int argTime = 0;					//<-- how many seconds shall the program run? if 0, run forever! (untill closed by user)
+int argProbeIntervalMS = 0;			//<-- how many miliseconds to wait between probes
 
 // Attributes
 HWND hwnd = NULL; // Window Handle
@@ -86,7 +88,7 @@ void Cleanup();
 void WaitForPreviousFrame();
 
 //timing stuff:
-void Arrange_Test_Data(const std::string* dataArr, WMIDataItem* item);
+void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item);
 void SaveToFile(const std::string& file, const std::string& data);
 
 //util

@@ -1,11 +1,12 @@
 #include "stdafx.h"
 
-#define TEST_PROBE_INTERVAL_MS 0	//<-- probe each frame
-
 #define TEST_CSV_ARG "-csv"
 #define TEST_PERFMON_ARG "-perfmon"
 #define TEST_TIME_ARG "-sec"
-#define TEST_PIPELINE_STATISTICS "-stat"
+#define TEST_PROBE_INTERVAL_ARG "-pi"	//<-- probe interval: must be followed by an integer determining how many ms to wait between probes
+#define TEST_PIPELINE_STATISTICS "-stat"	//<- must be followed by "dynamic" or "static" (the next two macros)
+#define TEST_PIPELINE_STATISTICS_DYNAMIC "dynamic"
+#define TEST_PIPELINE_STATISTICS_STATIC "static"
 
 void Cleanup() {
 	// wait for gpu to finish all of its frames
@@ -500,15 +501,15 @@ void UpdatePipeline() {
 	HRESULT hr;
 	WaitForPreviousFrame(); // Wait for gpu to finish using allocator before reset
 
-	D3D12_RANGE range = {};
-	range.Begin = 0;
-	range.End = 11*8;
-	queryResult->Map(0, &range, reinterpret_cast<void**>(&bufferData));
-	D3D12_RANGE emptyRange = { 0,0 };
-	queryResult->Unmap(0, &emptyRange);
-	//END DEBUG
+	if (argPipelineStat) {
 
-	//auto dbugData = reinterpret_cast<D3D12_QUERY_DATA_PIPELINE_STATISTICS*>(bufferData);
+		D3D12_RANGE range = {};
+		range.Begin = 0;
+		range.End = 11*8;
+		queryResult->Map(0, &range, reinterpret_cast<void**>(&bufferData));
+		D3D12_RANGE emptyRange = { 0,0 };
+		queryResult->Unmap(0, &emptyRange);
+	}
 
 	// Resetting command allocator. Freeing memory command list was stored in on GPU.
 	hr = commandAllocator[frameIndex]->Reset();
@@ -617,6 +618,7 @@ void mainloop() {
 	WMIDataCollection database;
 	_bstr_t probe_properties[] = { "Identifier", "Value", "SensorType" };	//<-- determined by OpenHardwareMonitor
 
+	size_t statProbeCount = 0;
 
 	while (argTime == 0 || argTime > nanoSec / 1000000000) {
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -638,56 +640,80 @@ void mainloop() {
 		WMIDataItem item;
 
 		if (argCsv) {
-			if (nanoSec / 1000000 > probeCount * TEST_PROBE_INTERVAL_MS)
+			if (nanoSec / 1000000 > probeCount * argProbeIntervalMS)
 			{
-				item = wmiAccessor.QueryItem("sensor", probe_properties, 3, Arrange_Test_Data);
+				item = wmiAccessor.QueryItem("sensor", probe_properties, 3, Arrange_OHM_Data);
 			}
 		}
 
 		if (argPipelineStat) {
-			if (nanoSec / 100000 > probeCount * TEST_PROBE_INTERVAL_MS) {
-				/* TODO: implement this fully
-				if (bufferData != nullptr) {
-					item.Add("CInvocations", force_string(bufferData->CInvocations));
-					item.Add("IAVertices", force_string(bufferData->IAVertices));
-					
+			if (nanoSec / 100000 > probeCount * argProbeIntervalMS) {
+				//data description: https://msdn.microsoft.com/en-us/library/windows/desktop/dn903808.aspx?f=255&MSPPError=-2147217396
+				
+				//note: the test probeCount == 1 is just to say: this will only happen once (if dynamic is false).
+				//the very first probe will not contain proper data (as bufferData contains data from last frame).
+				if (bufferData != nullptr && (argPipelineStatDyn || probeCount == 1)) {
+					item.Add("CInvocations",	force_string(bufferData->CInvocations));
+					item.Add("CPrimitives",		force_string(bufferData->CPrimitives));
+					item.Add("CSInvocations",	force_string(bufferData->CSInvocations));
+					item.Add("DSInvocations",	force_string(bufferData->DSInvocations));
+					item.Add("GSInvocations",	force_string(bufferData->GSInvocations));
+					item.Add("GSPrimitives",	force_string(bufferData->GSPrimitives));
+					item.Add("HSnvocations",	force_string(bufferData->HSInvocations));
+					item.Add("IAPrimitives",	force_string(bufferData->IAPrimitives));
+					item.Add("IAVertices",		force_string(bufferData->IAVertices));
+					item.Add("PSInvocations",	force_string(bufferData->PSInvocations));
+					item.Add("VSInvocations",	force_string(bufferData->VSInvocations));
 				}
-				auto d = "bug";
-				*/
 			}
 		}
 
-		if (argCsv || argPipelineStat) {
-			++probeCount;
+		if (argCsv || (argPipelineStat && (argPipelineStatDyn || probeCount == 1))) {
 			item.Add("Timestamp", std::to_string(nanoSec));
 			//TODO: add FPS to item in some way
 			database.Add(item);
 		}
 
+		if (argCsv || argPipelineStat) {
+			++probeCount;
+		}
+
 	} //END while
+
+	  //the timestamp for filename will be of the format yyyymmddhhmmss
+	auto now = time(NULL);
+	tm* localNow = new tm();
+	localtime_s(localNow, &now);
+
+	auto yearStr = std::to_string((1900 + localNow->tm_year));
+	auto monthStr = localNow->tm_mon < 9 ? "0" + std::to_string(localNow->tm_mon + 1) : std::to_string(localNow->tm_mon + 1);
+	auto dayStr = localNow->tm_mday < 10 ? "0" + std::to_string(localNow->tm_mday) : std::to_string(localNow->tm_mday);
+	auto hourStr = localNow->tm_hour < 10 ? "0" + std::to_string(localNow->tm_hour) : std::to_string(localNow->tm_hour);
+	auto minStr = localNow->tm_min < 10 ? "0" + std::to_string(localNow->tm_min) : std::to_string(localNow->tm_min);
+	auto secStr = localNow->tm_sec < 10 ? "0" + std::to_string(localNow->tm_sec) : std::to_string(localNow->tm_sec);
+
+	auto fname = yearStr + monthStr + dayStr + hourStr + minStr + secStr;
 
 	if (argCsv) {
 
 		std::vector<std::string> order = { "Timestamp", "ComponentType", "ComponentID", "SensorType", "SensorID", "Value" };
 		auto csvStr = database.MakeString(order, ";");
-
-		//the timestamp for filename will be of the format yyyymmddhhmmss = 14 characters long
-		auto now = time(NULL);
-		tm* localNow = new tm();
-		localtime_s(localNow, &now);
-
-		auto yearStr = std::to_string((1900 + localNow->tm_year));
-		auto monthStr = localNow->tm_mon < 9 ? "0" + std::to_string(localNow->tm_mon + 1) : std::to_string(localNow->tm_mon + 1);
-		auto dayStr = localNow->tm_mday < 10 ? "0" + std::to_string(localNow->tm_mday) : std::to_string(localNow->tm_mday);
-		auto hourStr = localNow->tm_hour < 10 ? "0" + std::to_string(localNow->tm_hour) : std::to_string(localNow->tm_hour);
-		auto minStr = localNow->tm_min < 10 ? "0" + std::to_string(localNow->tm_min) : std::to_string(localNow->tm_min);
-		auto secStr = localNow->tm_sec < 10 ? "0" + std::to_string(localNow->tm_sec) : std::to_string(localNow->tm_sec);
-
-		auto fname = yearStr + monthStr + dayStr + hourStr + minStr + secStr;
-
 		SaveToFile("data_" + fname + ".csv", csvStr);
-		delete localNow;
 	}
+
+	if (argPipelineStat) {
+		std::vector<std::string> pipeline_stat_order = {
+			"CInvocations", "CPrimitives", "CSInvocations",
+			"DSInvocations", "GSInvocations", "GSPrimitives",
+			"HSnvocations",	"IAPrimitives", "IAVertices",
+			"PSInvocations", "VSInvocations"
+		};
+
+		auto csvStr = database.MakeString(pipeline_stat_order, ";");
+		SaveToFile("stat_" + fname + ".csv", csvStr);
+	}
+
+	delete localNow;
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -744,6 +770,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR exeArg, int nShowCmd) {
 		}
 		else if (a == TEST_PIPELINE_STATISTICS) {
 			argPipelineStat = true;
+			argPipelineStatDyn = args[i + 1] == TEST_PIPELINE_STATISTICS_DYNAMIC ? true : false;
+			
+			//if "dynamic" or "static" is not given, return an error code
+			if (!argPipelineStatDyn && args[i + 1] != TEST_PIPELINE_STATISTICS_STATIC) {
+				return 1234567;	//<-- error code
+			}
+		}
+		else if (a == TEST_PROBE_INTERVAL_ARG) {
+			argProbeIntervalMS = stoi(args[i + 1]);
 		}
 	}
 
@@ -770,7 +805,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR exeArg, int nShowCmd) {
 }
 
 //Determines how the cells (items) in the database look (name = attribute/collumn in db, value = entry in cell)
-void Arrange_Test_Data(const std::string* dataArr, WMIDataItem* item)
+void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item)
 {
 	/*
 	dataArr[0] is Identifyer (when called in this main).
