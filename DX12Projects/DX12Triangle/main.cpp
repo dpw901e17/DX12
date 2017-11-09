@@ -601,8 +601,6 @@ void Render(long long timestamp) {
 		Running = false;
 	}
 
-	device->
-
 	// present current backbuffer
 	hr = swapChain->Present(0, 0);
 	if (FAILED(hr)) {
