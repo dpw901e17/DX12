@@ -502,12 +502,20 @@ void UpdatePipeline() {
 	WaitForPreviousFrame(); // Wait for gpu to finish using allocator before reset
 
 	if (argPipelineStat) {
-
+		D3D12_RANGE emptyRange = { 0,0 };
+		
+		//TODO: change bufferData to be an array of length 3 (we use tripple-buffering), and keep track of data that way.
+		/*
+		if (bufferData) {
+			queryResult->Unmap(0, &emptyRange);
+			delete bufferData;	//<-- crashes shortly after exe start.
+		}
+		*/
+		//
 		D3D12_RANGE range = {};
 		range.Begin = 0;
 		range.End = 11*8;
 		queryResult->Map(0, &range, reinterpret_cast<void**>(&bufferData));
-		D3D12_RANGE emptyRange = { 0,0 };
 		queryResult->Unmap(0, &emptyRange);
 	}
 
@@ -593,11 +601,15 @@ void Render(long long timestamp) {
 		Running = false;
 	}
 
+	device->
+
 	// present current backbuffer
 	hr = swapChain->Present(0, 0);
 	if (FAILED(hr)) {
 		Running = false;
 	}
+
+	auto d = "bug";
 }
 
 void mainloop() {
