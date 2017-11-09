@@ -1,6 +1,6 @@
 #include "wmiaccess.h"
 
-WMIAccessor::WMIAccessor(const bstr_t & wmiNamespace)
+void WMIAccessor::Connect(const bstr_t & wmiNamespace)
 {
 	HRESULT hres;
 
@@ -114,8 +114,13 @@ WMIAccessor::WMIAccessor(const bstr_t & wmiNamespace)
 
 WMIAccessor::~WMIAccessor()
 {
-	pSvc->Release();
-	pLoc->Release();
+	if (pSvc) {
+		pSvc->Release();
+	}
+
+	if (pLoc) {
+		pLoc->Release();
+	}
 
 	CoUninitialize();
 }

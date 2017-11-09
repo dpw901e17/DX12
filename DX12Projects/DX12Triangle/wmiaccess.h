@@ -57,7 +57,8 @@ private:
 
 public:
 	//"Root\" should not be part of wmiNamespace! 
-	WMIAccessor(const bstr_t& wmiNamespace);
+	WMIAccessor() {};
+	void Connect(const bstr_t& wmiNamespace);
 	~WMIAccessor();
 
 	//Executes: SELECT [wmiProperties] FROM [wmiClass] and returnes the result in a csv string

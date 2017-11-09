@@ -624,7 +624,13 @@ void mainloop() {
 	size_t probeCount = 0;	//<-- how many times we have collected data this test
 
 
-	WMIAccessor wmiAccessor("OpenHardwareMonitor");
+	WMIAccessor wmiAccessor;
+	
+	//only establish connection with OHM if needed
+	if (argCsv) {
+		wmiAccessor.Connect("OpenHardwareMonitor");
+	}
+
 	WMIDataCollection database;
 	_bstr_t probe_properties[] = { "Identifier", "Value", "SensorType" };	//<-- determined by OpenHardwareMonitor
 
