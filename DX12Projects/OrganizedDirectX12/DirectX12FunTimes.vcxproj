@@ -121,12 +121,10 @@
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Window.h" />
-    <ClInclude Include="WindowTarget.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Window.cpp" />
-    <ClCompile Include="WindowTarget.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PixelShader.hlsl">

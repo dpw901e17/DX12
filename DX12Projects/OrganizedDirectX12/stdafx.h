@@ -39,10 +39,6 @@ int frameIndex;
 
 int rtvDescriptorSize;
 
-//Index buffering
-ID3D12Resource* indexBuffer;
-
-D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
 //******* Tutorial 4
 
@@ -52,6 +48,14 @@ D3D12_VIEWPORT viewport;
 D3D12_RECT scissorRect;
 ID3D12Resource* vertexBuffer;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
+//********* Tutorial 5 indexes
+ID3D12Resource* indexBuffer;
+D3D12_INDEX_BUFFER_VIEW indexBufferView;
+
+//********* Tutorial 6 depth test
+ID3D12Resource* depthStencilBuffer; 
+ID3D12DescriptorHeap* dsDescriptorHeap;
 
 //*********
 //DirectX12 functions
@@ -86,17 +90,13 @@ bool FullScreen = false;
 bool Running = true;
 
 //*********
-//Window Functions
-bool IntializeWindow(HINSTANCE hInstance,
-	int ShowWnd,
-	int width, int height,
-	bool fullscreen);
 
 // Main loop of the application
 void mainloop();
 
-// callback functions for when windows wants to message us
-LRESULT CALLBACK WndProc(HWND hWnd, 
-						UINT msg, 
-						WPARAM wParam, 
-						LPARAM lParam);
+struct Vertex {
+	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
+	Vertex(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 color) : pos(position), color(color) {}
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT4 color;
+};
