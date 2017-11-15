@@ -19,6 +19,10 @@
 // this will only call release if an object exists (prevents exceptions calling release on non existant objects)
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
 
+struct ConstantBuffer {
+	DirectX::XMFLOAT4 colorMultiplier;
+};
+
 //*********
 //DirectX12 variables
 
@@ -56,6 +60,14 @@ D3D12_INDEX_BUFFER_VIEW indexBufferView;
 //********* Tutorial 6 depth test
 ID3D12Resource* depthStencilBuffer; 
 ID3D12DescriptorHeap* dsDescriptorHeap;
+
+//********* Tutorial 7 constant buffers
+ID3D12DescriptorHeap* mainDescriptorHeap[frameBufferCount]; //descriptor heap
+ID3D12Resource* constantBufferUploadHeap[frameBufferCount]; //GPU memory ressource
+
+ConstantBuffer cbColorMultiplierData; //Data that will be sent to the GPU
+
+UINT8* cbColorMultiplierGPUAddress[frameBufferCount]; // GPU adress of where the constant buffer is
 
 //*********
 //DirectX12 functions
@@ -100,3 +112,5 @@ struct Vertex {
 	DirectX::XMFLOAT3 pos;
 	DirectX::XMFLOAT4 color;
 };
+
+
