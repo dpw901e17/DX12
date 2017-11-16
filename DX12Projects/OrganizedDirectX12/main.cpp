@@ -42,7 +42,7 @@ void mainloop()
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
 
-	while (true)
+	while (Running)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
@@ -537,10 +537,10 @@ bool InitD3D()
 		ZeroMemory(&cbColorMultiplierData, sizeof(cbColorMultiplierData));
 
 		//create memory mapping from CPU to GPU
-		CD3DX12_RANGE readRange(0, 0);
-		hr = constantBufferUploadHeap[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
-		
-		memcpy(cbColorMultiplierGPUAddress[i], &cbColorMultiplierGPUAddress, sizeof(cbColorMultiplierData));
+		CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (End is less than or equal to begin)
+        hr = constantBufferUploadHeap[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
+        memcpy(cbColorMultiplierGPUAddress[i], &cbColorMultiplierData, sizeof(cbColorMultiplierData));
+
 	}
 
 
@@ -584,9 +584,9 @@ bool InitD3D()
 
 void Update()
 {
-	static float redInc = 0.00002f;
-	static float greenInc = 0.00006f;
-	static float blueInc = 0.00009f;
+	static float redInc = 0.5f;
+	static float greenInc = 0.2f;
+	static float blueInc = 0.2f;
 
 	cbColorMultiplierData.colorMultiplier.x += redInc;
 	cbColorMultiplierData.colorMultiplier.y += greenInc;
@@ -642,6 +642,8 @@ void UpdatePipeline()
 	// clear the depth/stencil buffer
 	commandList->ClearDepthStencilView(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
+	commandList->SetGraphicsRootSignature(rootSignature);
+		
 	//Set constant buffer descriptor heap 
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mainDescriptorHeap[frameIndex] };
 	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
@@ -658,10 +660,10 @@ void UpdatePipeline()
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
 	commandList->IASetIndexBuffer(&indexBufferView);
 	commandList->DrawIndexedInstanced(6, 1, 0, 0, 0); // draw first quad
-	commandList->DrawIndexedInstanced(6, 1, 0, 4, 0); // draw second quad
+	//commandList->DrawIndexedInstanced(6, 1, 0, 4, 0); // draw second quad
 
-											// transition the "frameIndex" render target from the render target state to the present state. If the debug layer is enabled, you will receive a
-											// warning if present is called on the render target when it's not in the present state
+	// transition the "frameIndex" render target from the render target state to the present state. If the debug layer is enabled, you will receive a
+	// warning if present is called on the render target when it's not in the present state
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	hr = commandList->Close();
@@ -712,19 +714,25 @@ void Cleanup()
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);
-	SAFE_RELEASE(indexBuffer);
-	SAFE_RELEASE(depthStencilBuffer);
-	SAFE_RELEASE(dsDescriptorHeap);
-
+	
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		SAFE_RELEASE(renderTargets[i]);
 		SAFE_RELEASE(commandAllocator[i]);
 		SAFE_RELEASE(fence[i]);
-		SAFE_RELEASE(indexBuffer);
+		
 		SAFE_RELEASE(mainDescriptorHeap[i]);
 		SAFE_RELEASE(constantBufferUploadHeap[i]);
 	};
+
+	SAFE_RELEASE(pipelineStateObject);
+	SAFE_RELEASE(rootSignature);
+	SAFE_RELEASE(vertexBuffer);
+	SAFE_RELEASE(indexBuffer);
+
+	SAFE_RELEASE(depthStencilBuffer);
+	SAFE_RELEASE(dsDescriptorHeap);
+
 }
 
 void WaitForPreviousFrame()
