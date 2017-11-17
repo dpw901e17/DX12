@@ -23,6 +23,10 @@ struct ConstantBuffer {
 	DirectX::XMFLOAT4 colorMultiplier;
 };
 
+struct ConstantBufferPerObject {
+	DirectX::XMFLOAT4X4 wvpMat;
+};
+
 //*********
 //DirectX12 variables
 
@@ -58,16 +62,38 @@ ID3D12Resource* indexBuffer;
 D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
 //********* Tutorial 6 depth test
-ID3D12Resource* depthStencilBuffer; 
+ID3D12Resource* depthStencilBuffer;
 ID3D12DescriptorHeap* dsDescriptorHeap;
 
-//********* Tutorial 7 constant buffers
-ID3D12DescriptorHeap* mainDescriptorHeap[frameBufferCount]; //descriptor heap
-ID3D12Resource* constantBufferUploadHeap[frameBufferCount]; //GPU memory ressource
+//********* Tutorial 9 Cube
 
-ConstantBuffer cbColorMultiplierData; //Data that will be sent to the GPU
+// Allignment value
+int ConstantBufferPerObjectAllignedSize = (sizeof(ConstantBufferPerObject) + 255) & ~255; //  ~255 = -256 = 1000000000
 
-UINT8* cbColorMultiplierGPUAddress[frameBufferCount]; // GPU adress of where the constant buffer is
+ConstantBufferPerObject cbPerObject; // constant buffer data sent to the GPU
+
+ID3D12Resource* constantBufferUploadHeaps[frameBufferCount]; // gpu memory where the buffer is placed
+
+UINT8* cbvGPUAddress[frameBufferCount]; // pointer to constant buffer resource heaps
+
+										// Matrixes
+										// Remember not to pass around the matrixes. But store them in vectors first. 
+DirectX::XMFLOAT4X4 cameraProjMat;
+DirectX::XMFLOAT4X4 cameraViewMat;
+
+DirectX::XMFLOAT4 cameraPosition;
+DirectX::XMFLOAT4 cameraTarget;
+DirectX::XMFLOAT4 cameraUp;
+
+DirectX::XMFLOAT4X4 cube1WorldMat;
+DirectX::XMFLOAT4X4 cube1RotMat;
+DirectX::XMFLOAT4 cube1Position;
+
+DirectX::XMFLOAT4X4 cube2WorldMat;
+DirectX::XMFLOAT4X4 cube2RotMat;
+DirectX::XMFLOAT4 cube2PositionOffset;
+
+int numCubeIndices;
 
 //*********
 //DirectX12 functions

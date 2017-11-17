@@ -220,49 +220,42 @@ bool InitD3D()
 	}
 
 	//--Create root signature
-	//create descriptor range
-	D3D12_DESCRIPTOR_RANGE descriptorTableRanges[1];
-	descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	descriptorTableRanges[0].NumDescriptors = 1; //we currently only have one descriptor, since we only have one constant buffer
-	descriptorTableRanges[0].BaseShaderRegister = 0; //start index of shader registers 
-	descriptorTableRanges[0].RegisterSpace = 0;
-	descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	
-	//descriptor table which uses descriptor range
-	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
-	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); //currently have 1
-	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0];
 
-	//Root parameters to fill out the root
-	D3D12_ROOT_PARAMETER rootParameters[1]; //one parameter
-	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE; //the descriptor table
-	rootParameters[0].DescriptorTable = descriptorTable; //the descriptor table for the root parameter
-	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; //only made visible on vertex shader
+	// root descriptor explaining where to find data in this root parameter
+	D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
+	rootCBVDescriptor.RegisterSpace = 0;
+	rootCBVDescriptor.ShaderRegister = 0;
 
-	//root signature
+	// create root parameter and fill it out
+	D3D12_ROOT_PARAMETER rootParameters[1];
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[0].Descriptor = rootCBVDescriptor; // Descriptor of the parameter
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // parameter only used by vertex shader
+
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-	rootSignatureDesc.Init(_countof(rootParameters), //we only have 1 for now, so it will be 1
-		rootParameters, //a pointer to the root parameter array
-		0, 
-		nullptr, 
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+	rootSignatureDesc.Init(_countof(rootParameters), // one root parameter
+		rootParameters, // pointer to our array of RUDEparameters
+		0,
+		nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // Deny for better performance
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS | 
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS | 
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS);
 
+	// Make signature
 	ID3DBlob* signature;
 	hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
-	if (FAILED(hr))
-	{
+	if (FAILED(hr)) {
 		return false;
 	}
 
+	// Tell device to create signature
 	hr = device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
-	if (FAILED(hr))
-	{
+	if (FAILED(hr)) {
 		return false;
 	}
+
 
 	//pixel und vertex shader
 
@@ -309,7 +302,7 @@ bool InitD3D()
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT)*3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
@@ -343,48 +336,48 @@ bool InitD3D()
 
 	//vertex Buffer
 
-	/*
-	Vertex vList[] =
-	{
-		//Jew star david triangle 1
-		{ { 0.0f, -0.7f, 0.5f },{ 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ -0.5f,  0.3f, 0.5f,	0.0f, 1.0f, 0.0f, 1.0f },
-		{ 0.5f,  0.3f, 0.5f,	0.0f, 0.0f, 1.0f, 1.0f },
-
-		//Jew star david triangle 2
-		{ 0.0f,  0.7f, 0.5f,	1.0f, 0.0f, 0.0f, 1.0f },
-		{ 0.5f, -0.3f, 0.5f,	0.0f, 1.0f, 0.0f, 1.0f },
-		{ -0.5f, -0.3f, 0.5f,	0.0f, 0.0f, 1.0f, 1.0f },
-	};
-	*/
-
-	// a triangle
-	/*Vertex vList[] = {
-		// first quad (closer to camera, blue)
-		{ -0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ 0.5f, -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ 0.5f,  0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-
-		// second quad (further from camera, green)
-		{ -0.75f,  0.75f,  0.7f, 0.0f, 1.0f, 0.0f, 1.0f },
-		{ 0.0f,  0.0f, 0.7f, 0.0f, 1.0f, 0.0f, 1.0f },
-		{ -0.75f,  0.0f, 0.7f, 0.0f, 1.0f, 0.0f, 1.0f },
-		{ 0.0f,  0.75f,  0.7f, 0.0f, 1.0f, 0.0f, 1.0f }
-	};
-	*/
-
 	// a quad
 	Vertex vList[] = {
-		// first quad (closer to camera, blue)
-		{ -0.5f,  0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
-		{ 0.5f, -0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f, 0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
-		{ 0.5f,  0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 1.0f }
+		// front face
+		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.5f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+
+		// right side face
+		{ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+
+		// left side face
+		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+
+		// back face
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+
+		// top face
+		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
+
+		// bottom face
+		{ 0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 	};
 
 	int vBufferSize = sizeof(vList);
 
+	// Create default heap
 	device->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
@@ -395,6 +388,7 @@ bool InitD3D()
 
 	vertexBuffer->SetName(L"Vertex Buffer Resource Heap");
 
+	// Create upload heap
 	ID3D12Resource* vBufferUploadHeap;
 	device->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // upload heap
@@ -420,11 +414,33 @@ bool InitD3D()
 
 	// Creating the index buffer
 	DWORD iList[] = {
-		0, 1, 2,
-		0, 3, 1
+		// ffront face
+		0, 1, 2, // first triangle
+		0, 3, 1, // second triangle
+
+				 // left face
+				 4, 5, 6, // first triangle
+				 4, 7, 5, // second triangle
+
+						  // right face
+						  8, 9, 10, // first triangle
+						  8, 11, 9, // second triangle
+
+									// back face
+									12, 13, 14, // first triangle
+									12, 15, 13, // second triangle
+
+												// top face
+												16, 17, 18, // first triangle
+												16, 19, 17, // second triangle
+
+															// bottom face
+															20, 21, 22, // first triangle
+															20, 23, 21, // second triangle
 	};
 
 	int iBufferSize = sizeof(iList);
+	numCubeIndices = sizeof(iList) / sizeof(DWORD);
 
 	// Create default heap for holding index buffer
 	device->CreateCommittedResource(
@@ -454,12 +470,12 @@ bool InitD3D()
 	indexData.RowPitch = iBufferSize; // Size of index buffer
 	indexData.SlicePitch = iBufferSize; // Size of index buffer
 
-	//Create the copying command from upload to default heap
+										//Create the copying command from upload to default heap
 	UpdateSubresources(commandList, indexBuffer, iBufferUploadHeap, 0, 0, 1, &indexData);
 
 	// transition the vertex buffer data from copy destination state to vertex buffer state
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
-	
+
 	// create a vertex buffer view for the triangle
 	indexBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
@@ -501,48 +517,31 @@ bool InitD3D()
 	//Create view of buffer
 	device->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	//constant buffer descriptor heap
-	for (int i = 0; i < frameBufferCount; ++i)
-	{
-		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 1;
-		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap[i]));
-		if (FAILED(hr))
-		{
-			Running = false;
-		}
-	}
-
-	//create the constant buffer heap
-	//note that we only pass data to the upload heap
-	//as we update every frame
+	// Lots of allignment stuff
 	for (int i = 0; i < frameBufferCount; ++i) {
+
+		// create resource for cube 1
 		hr = device->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), //This is the upload heap
-			D3D12_HEAP_FLAG_NONE, 
-			&CD3DX12_RESOURCE_DESC::Buffer(1024 * 64), //size of ressource heap must be multiple of 64 kilobytes
-			D3D12_RESOURCE_STATE_GENERIC_READ, //data is being read
-			nullptr, //no clear value
-			IID_PPV_ARGS(&constantBufferUploadHeap[i])); 
-		constantBufferUploadHeap[i]->SetName(L"Constant Buffer Upload Resource Heap");
-	
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = constantBufferUploadHeap[i]->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = (sizeof(ConstantBuffer) + 255) & ~255; // Constant buffer must be 256-byte aligned
-		device->CreateConstantBufferView(&cbvDesc, mainDescriptorHeap[i]->GetCPUDescriptorHandleForHeapStart());
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(1024 * 64), // suze of reosurce heap must be a multiple of 64KB
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr, // no optimized clear value
+			IID_PPV_ARGS(&constantBufferUploadHeaps[i])
+		);
+		constantBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
 
-		//clear the memory in the constant buffer!
-		ZeroMemory(&cbColorMultiplierData, sizeof(cbColorMultiplierData));
+		ZeroMemory(&cbPerObject, sizeof(cbPerObject));
 
-		//create memory mapping from CPU to GPU
-		CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (End is less than or equal to begin)
-        hr = constantBufferUploadHeap[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbColorMultiplierGPUAddress[i]));
-        memcpy(cbColorMultiplierGPUAddress[i], &cbColorMultiplierData, sizeof(cbColorMultiplierData));
+		CD3DX12_RANGE readRange(0, 0); // Don't intend to read from this resource on CPU
 
+									   // Map resource to gpu virtual address
+		hr = constantBufferUploadHeaps[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i]));
+
+		// Remember to 256 bit allign these mem copies of constant buffer!
+		memcpy(cbvGPUAddress[i], &cbPerObject, sizeof(cbPerObject));
+		memcpy(cbvGPUAddress[i] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject));
 	}
-
 
 	// Now we execute the command list to upload the initial assets (triangle data)
 	commandList->Close();
@@ -577,38 +576,90 @@ bool InitD3D()
 	scissorRect.right = Width;
 	scissorRect.bottom = Height;
 
+	// build projection and view matrix
+	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(45.0f*(3.14f / 180.0f), (float)Width / (float)Height, 0.1f, 1000.0f);
+	XMStoreFloat4x4(&cameraProjMat, tmpMat);
+
+	// set starting camera state
+	cameraPosition = XMFLOAT4(0.0f, 2.0f, -4.0f, 0.0f);
+	cameraTarget = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+	cameraUp = XMFLOAT4(0.0f, 1.0f, 0.0f, 0.0f);
+
+	// build view matrix
+	XMVECTOR cPos = XMLoadFloat4(&cameraPosition);
+	XMVECTOR cTarg = XMLoadFloat4(&cameraTarget);
+	XMVECTOR cUp = XMLoadFloat4(&cameraUp);
+	tmpMat = XMMatrixLookAtLH(cPos, cTarg, cUp);
+	XMStoreFloat4x4(&cameraViewMat, tmpMat);
+
+	// first cube
+	cube1Position = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+	XMVECTOR posVec = XMLoadFloat4(&cube1Position);
+
+	tmpMat = XMMatrixTranslationFromVector(posVec);
+	XMStoreFloat4x4(&cube1RotMat, XMMatrixIdentity());
+	XMStoreFloat4x4(&cube1WorldMat, tmpMat);
+
+	// second cube
+	cube2PositionOffset = XMFLOAT4(1.5f, 0.0f, 0.0f, 0.0f);
+	posVec = XMLoadFloat4(&cube2PositionOffset) + XMLoadFloat4(&cube1Position);
+
+	tmpMat = XMMatrixTranslationFromVector(posVec);
+	XMStoreFloat4x4(&cube2RotMat, XMMatrixIdentity());
+	XMStoreFloat4x4(&cube2WorldMat, tmpMat);
+
 	return true;
 }
 
-
-
 void Update()
 {
-	static float redInc = 0.5f;
-	static float greenInc = 0.2f;
-	static float blueInc = 0.2f;
+	// rotation matrices
+	XMMATRIX rotXMat = XMMatrixRotationX(0.0001f);
+	XMMATRIX rotYMat = XMMatrixRotationY(0.0002f);
+	XMMATRIX rotZMat = XMMatrixRotationZ(0.0003f);
 
-	cbColorMultiplierData.colorMultiplier.x += redInc;
-	cbColorMultiplierData.colorMultiplier.y += greenInc;
-	cbColorMultiplierData.colorMultiplier.z += blueInc;
-	
-	if (cbColorMultiplierData.colorMultiplier.x >= 1.0 || cbColorMultiplierData.colorMultiplier.x <= 0.0)
-	{
-		cbColorMultiplierData.colorMultiplier.x = cbColorMultiplierData.colorMultiplier.x >= 1.0 ? 1.0 : 0.0;
-		redInc = -redInc;
-	}
-	if (cbColorMultiplierData.colorMultiplier.y >= 1.0 || cbColorMultiplierData.colorMultiplier.y <= 0.0)
-	{
-		cbColorMultiplierData.colorMultiplier.y = cbColorMultiplierData.colorMultiplier.x >= 1.0 ? 1.0 : 0.0;
-		greenInc = -greenInc;
-	}
-	if (cbColorMultiplierData.colorMultiplier.z >= 1.0 || cbColorMultiplierData.colorMultiplier.z <= 0.0)
-	{
-		cbColorMultiplierData.colorMultiplier.z = cbColorMultiplierData.colorMultiplier.x >= 1.0 ? 1.0 : 0.0;
-		blueInc = -blueInc;
-	}
-	
-	memcpy(cbColorMultiplierGPUAddress[frameIndex], &cbColorMultiplierData, sizeof(cbColorMultiplierData));
+	// add rotation to cube1's rot matrix
+	XMMATRIX rotMat = XMLoadFloat4x4(&cube1RotMat) * rotXMat * rotYMat * rotZMat;
+	XMStoreFloat4x4(&cube1RotMat, rotMat);
+
+	// translation matrix for cube 1
+	XMMATRIX translationMat = XMMatrixTranslationFromVector(XMLoadFloat4(&cube1Position));
+
+	// world matrix for cube 1
+	XMMATRIX worldMat = rotMat * translationMat;
+	XMStoreFloat4x4(&cube1WorldMat, worldMat);
+
+	// create wvp matrix
+	XMMATRIX viewMat = XMLoadFloat4x4(&cameraViewMat);
+	XMMATRIX projMat = XMLoadFloat4x4(&cameraProjMat);
+	XMMATRIX wvpMat = XMLoadFloat4x4(&cube1WorldMat) * viewMat * projMat;
+	XMMATRIX transposed = XMMatrixTranspose(wvpMat);
+	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
+
+	memcpy(cbvGPUAddress[frameIndex], &cbPerObject, sizeof(cbPerObject));
+
+	// CUBE 2
+	rotXMat = XMMatrixRotationX(0.0003f);
+	rotYMat = XMMatrixRotationY(0.0002f);
+	rotZMat = XMMatrixRotationZ(0.0001f);
+
+	rotMat = rotZMat * (XMLoadFloat4x4(&cube2RotMat) * (rotXMat * rotYMat));
+	XMStoreFloat4x4(&cube2RotMat, rotMat);
+
+	XMMATRIX translationOffsetMat = XMMatrixTranslationFromVector(XMLoadFloat4(&cube2PositionOffset));
+
+	XMMATRIX scaleMat = XMMatrixScaling(0.5f, 0.5f, 0.5f);
+
+	worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
+
+	wvpMat = XMLoadFloat4x4(&cube2WorldMat) * viewMat * projMat;
+	transposed = XMMatrixTranspose(wvpMat);
+	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
+
+	memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject));
+
+
+	XMStoreFloat4x4(&cube2WorldMat, worldMat);
 }
 
 void UpdatePipeline()
@@ -642,28 +693,25 @@ void UpdatePipeline()
 	// clear the depth/stencil buffer
 	commandList->ClearDepthStencilView(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
+	// set root signature
 	commandList->SetGraphicsRootSignature(rootSignature);
-		
-	//Set constant buffer descriptor heap 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mainDescriptorHeap[frameIndex] };
-	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-	//set root descriptor table 0 to constant buffer descriptor heap
-	commandList->SetGraphicsRootDescriptorTable(0, mainDescriptorHeap[frameIndex]->GetGPUDescriptorHandleForHeapStart());
-
-	//DRAW-MONSTER-CARDO
-	//draw quad
-	commandList->SetGraphicsRootSignature(rootSignature); // set the root signature
-	commandList->RSSetViewports(1, &viewport); // set the viewports
-	commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
-	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
+	// draw triangle
+	commandList->RSSetViewports(1, &viewport);
+	commandList->RSSetScissorRects(1, &scissorRect);
+	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 	commandList->IASetIndexBuffer(&indexBufferView);
-	commandList->DrawIndexedInstanced(6, 1, 0, 0, 0); // draw first quad
-	//commandList->DrawIndexedInstanced(6, 1, 0, 4, 0); // draw second quad
 
-	// transition the "frameIndex" render target from the render target state to the present state. If the debug layer is enabled, you will receive a
-	// warning if present is called on the render target when it's not in the present state
+	// first cube
+	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress());
+	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
+
+	// second cube
+	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAllignedSize);
+	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
+
+
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
 	hr = commandList->Close();
@@ -714,15 +762,12 @@ void Cleanup()
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);
-	
+
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		SAFE_RELEASE(renderTargets[i]);
 		SAFE_RELEASE(commandAllocator[i]);
 		SAFE_RELEASE(fence[i]);
-		
-		SAFE_RELEASE(mainDescriptorHeap[i]);
-		SAFE_RELEASE(constantBufferUploadHeap[i]);
 	};
 
 	SAFE_RELEASE(pipelineStateObject);
@@ -732,6 +777,10 @@ void Cleanup()
 
 	SAFE_RELEASE(depthStencilBuffer);
 	SAFE_RELEASE(dsDescriptorHeap);
+
+	for (int i = 0; i < frameBufferCount; ++i) {
+		SAFE_RELEASE(constantBufferUploadHeaps[i]);
+	}
 
 }
 
