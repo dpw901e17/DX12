@@ -15,6 +15,7 @@
 #include <Mmsystem.h>
 #include <mciapi.h>
 #include "WindowTarget.h"
+#include "wincodec.h"
 
 // this will only call release if an object exists (prevents exceptions calling release on non existant objects)
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
@@ -95,6 +96,19 @@ DirectX::XMFLOAT4 cube2PositionOffset;
 
 int numCubeIndices;
 
+//********Tutorial 10 texture
+
+ID3D12Resource* textureBuffer;
+
+int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, LPCWSTR filename, int &bytesPerRow);
+
+DXGI_FORMAT GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGuid);
+WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID);
+int GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat);
+
+ID3D12DescriptorHeap* mainDescriptorHeap;
+ID3D12Resource* textureBufferUploadHeap;
+
 //*********
 //DirectX12 functions
 
@@ -133,10 +147,17 @@ bool Running = true;
 void mainloop();
 
 struct Vertex {
+	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT2 texCoord;
+};
+
+/*
+struct Vertex {
 	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
 	Vertex(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 color) : pos(position), color(color) {}
 	DirectX::XMFLOAT3 pos;
 	DirectX::XMFLOAT4 color;
 };
-
+*/
 
