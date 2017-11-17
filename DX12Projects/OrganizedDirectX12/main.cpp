@@ -338,7 +338,7 @@ bool InitD3D()
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT) * 2, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 	
 	/*
@@ -1008,7 +1008,7 @@ int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescrip
 		if (FAILED(hr)) return 0;
 
 		//make sure we can convert the frame.
-		BOOL canConvert = false;
+		BOOL canConvert = FALSE;
 		hr = wicConverter->CanConvert(pixelFormat, convertToPixelFormat, &canConvert);
 		if (FAILED(hr) || !canConvert) return 0;
 
