@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include <iostream>
-#include "Window.h"
+#include "../../scene-window-system/Window.h"
 
 using namespace DirectX;
 
