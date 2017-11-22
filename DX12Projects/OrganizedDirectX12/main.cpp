@@ -347,7 +347,7 @@ bool InitD3D()
 		// 2 texture coordinates
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
-	
+	//newline
 	/*
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
