@@ -78,24 +78,17 @@ bool InitD3D()
 	int adapterIndex = 0;
 	bool adapterFound = false;
 
-	// Enable the D3D12 debug layer.
-	ID3D12Debug* debugController;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	{
-		debugController->EnableDebugLayer();
-	}
-
 	while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
 	{
 		DXGI_ADAPTER_DESC1 desc;
 		adapter->GetDesc1(&desc);
 
 		//Need to run with basic renderer cause GPU doesn't directly support DX12.
-		//if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-		//{
-		//	adapterIndex++;
-		//	continue;
-		//}
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+		{
+			adapterIndex++;
+			continue;
+		}
 
 		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_1, _uuidof(ID3D12Device), nullptr);
 		if (SUCCEEDED(hr))
@@ -206,6 +199,7 @@ bool InitD3D()
 		return false;
 	}
 
+	//commandList->Close();
 
 	//create fence
 
@@ -226,63 +220,29 @@ bool InitD3D()
 	}
 
 	//--Create root signature
+	
 	// root descriptor explaining where to find data in this root parameter
 	D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
 	rootCBVDescriptor.RegisterSpace = 0;
 	rootCBVDescriptor.ShaderRegister = 0;
 
-	// create a descriptor range (descriptor table) and fill it out
-	// this is a range of descriptors inside a descriptor heap
-	D3D12_DESCRIPTOR_RANGE descriptorTableRanges[1]; //range is 1 for now
-	descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; //type of the range, range is a texture.
-	descriptorTableRanges[0].NumDescriptors = 1; //only one texture for the moment
-	descriptorTableRanges[0].BaseShaderRegister = 0; // start index of the shader register
-	descriptorTableRanges[0].RegisterSpace = 0; // space 0, can be zero.
-	descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; //appends to the end of the root.
-
-	//descriptor table
-	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable; 
-	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); //one texture, one range
-	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; //points to the start of the range array
-
-	D3D12_ROOT_PARAMETER rootParameters[2]; // two root parameters now! cube matrixes and texture
-	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; //constant buffer for view root descriptor
-	rootParameters[0].Descriptor = rootCBVDescriptor; //root descriptor for root parameter
-	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // To use for the vertex shader.
-
-	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParameters[1].DescriptorTable = descriptorTable; 
-	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // to use for the pixel shader
-
-	//Static sampler
-	//For bordercolour and no mipmap.
-	D3D12_STATIC_SAMPLER_DESC sampler = {};
-	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-	sampler.MipLODBias = 0;
-	sampler.MaxAnisotropy = 0;
-	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-	sampler.MinLOD = 0.0f;
-	sampler.MaxLOD = D3D12_FLOAT32_MAX;
-	sampler.ShaderRegister = 0;
-	sampler.RegisterSpace = 0;
-	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-
+	// create root parameter and fill it out
+	D3D12_ROOT_PARAMETER rootParameters[1];
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[0].Descriptor = rootCBVDescriptor; // Descriptor of the parameter
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // parameter only used by vertex shader
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 	rootSignatureDesc.Init(_countof(rootParameters), // one root parameter
 		rootParameters, // pointer to our array of RUDEparameters
-		1, //we now have a static sampler, so no longer 0
-		&sampler,
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // Deny for better performance
+		0,
+		nullptr,
+	D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // Deny for better performance
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
-
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS);
+	
 	// Make signature
 	ID3DBlob* signature;
 	hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
@@ -297,7 +257,8 @@ bool InitD3D()
 	}
 
 
-	//pixel and vertex shader
+	//pixel und vertex shader
+
 	ID3DBlob* vertexShader;
 	ID3DBlob* errorBuff;
 	hr = D3DCompileFromFile(L"VertexShader.hlsl",
@@ -338,20 +299,11 @@ bool InitD3D()
 	pixelShaderByteCode.pShaderBytecode = pixelShader->GetBufferPointer();
 
 	//Input layer creation
-	// Defines how shaders should read from vlist .
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT)*3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
-	
-	/*
-	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-	};
-	*/
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
 
@@ -359,20 +311,22 @@ bool InitD3D()
 	inputLayoutDesc.pInputElementDescs = inputLayout;
 
 	//Pipeline object
+
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-	psoDesc.InputLayout = inputLayoutDesc; // Layout of the vertex buffer
-	psoDesc.pRootSignature = rootSignature; // Pointer to shader accessible data
-	psoDesc.VS = vertexShaderBytecode; // Vertex shader
-	psoDesc.PS = pixelShaderByteCode; // Pixel shader 
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Drawing triangles
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM; // Format of render target
-	psoDesc.SampleDesc = sampleDesc; // Type of multi-sampling to use after render eg. super sampling
-	psoDesc.SampleMask = 0xffffffff;   // Mask used in multi-sampling
-	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // default rasterizer used
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // default blend stage used at the end of pipeline
-	psoDesc.NumRenderTargets = 1; // only drawing to one target per pipeline
-	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // use default depth/stencil buffer
-	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT; // format of depth/stencil buffer
+	psoDesc.InputLayout = inputLayoutDesc;
+	psoDesc.pRootSignature = rootSignature;
+	psoDesc.VS = vertexShaderBytecode;
+	psoDesc.PS = pixelShaderByteCode;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.SampleDesc = sampleDesc;
+	psoDesc.SampleMask = 0xffffffff;
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.NumRenderTargets = 1;
+
+	//Default Depth and stencil buffer
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
 	hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineStateObject));
 	if (FAILED(hr))
@@ -385,40 +339,40 @@ bool InitD3D()
 	// a quad
 	Vertex vList[] = {
 		// front face
-		{ -0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
-		{ 0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
+		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.5f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 
 		// right side face
-		{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
-		{ 0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
-		{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
+		{ 0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 
 		// left side face
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
-		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
+		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 
 		// back face
-		{ 0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
-		{ 0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 
 		// top face
-		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
-		{ 0.5f,  0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 
 		// bottom face
-		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f },
+		{ 0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f },
+		{ -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 1.0f },
+		{ 0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f },
+		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f },
 	};
 
 	int vBufferSize = sizeof(vList);
@@ -428,9 +382,10 @@ bool InitD3D()
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize),
-		D3D12_RESOURCE_STATE_COPY_DEST, // data from the upload heap is copied to stay here
+		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
 		IID_PPV_ARGS(&vertexBuffer));
+
 	vertexBuffer->SetName(L"Vertex Buffer Resource Heap");
 
 	// Create upload heap
@@ -447,13 +402,11 @@ bool InitD3D()
 	// store vertex buffer in upload heap
 	D3D12_SUBRESOURCE_DATA vertexData = {};
 	vertexData.pData = reinterpret_cast<BYTE*>(vList); // pointer to our vertex array
-	vertexData.RowPitch = vBufferSize; // size of all our triangle vertex data. 
+	vertexData.RowPitch = vBufferSize; // size of all our triangle vertex data
 	vertexData.SlicePitch = vBufferSize; // also the size of our triangle vertex data
-	// RowPitch = SlicePitch, because we are working with a flat buffer resource. No need to group data in another way.
-	// If using mipmaps, the row would be a texture at a mip map level and slice would go through several mipmap levels.
 
-	// we are now creating a command with the command list to copy the data from
-	// the upload heap to the default heap
+										 // we are now creating a command with the command list to copy the data from
+										 // the upload heap to the default heap
 	UpdateSubresources(commandList, vertexBuffer, vBufferUploadHeap, 0, 0, 1, &vertexData);
 
 	// transition the vertex buffer data from copy destination state to vertex buffer state
@@ -469,9 +422,9 @@ bool InitD3D()
 		4, 5, 6, // first triangle
 		4, 7, 5, // second triangle
 
-		 // right face
-		 8, 9, 10, // first triangle
-		 8, 11, 9, // second triangle
+		// right face
+		8, 9, 10, // first triangle
+		8, 11, 9, // second triangle
 
 		// back face
 		12, 13, 14, // first triangle
@@ -486,7 +439,7 @@ bool InitD3D()
 		20, 23, 21, // second triangle
 	};
 
-	int iBufferSize = sizeof(iList); // 144 bytes
+	int iBufferSize = sizeof(iList);
 	numCubeIndices = sizeof(iList) / sizeof(DWORD);
 
 	// Create default heap for holding index buffer
@@ -522,8 +475,8 @@ bool InitD3D()
 
 	// transition the vertex buffer data from copy destination state to vertex buffer state
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
-
-	// create a index buffer view for the triangle
+	
+	// create a vertex buffer view for the triangle
 	indexBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
 	indexBufferView.SizeInBytes = iBufferSize;
@@ -561,117 +514,34 @@ bool InitD3D()
 	);
 	dsDescriptorHeap->SetName(L"Depth/Stencil Resource Heap");
 
-	//Create view of depth/stencil buffer
+	//Create view of buffer
 	device->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	// Creating resources for each framebuffer
+	// Lots of allignment stuff
 	for (int i = 0; i < frameBufferCount; ++i) {
-
+		
 		// create resource for cube 1
 		hr = device->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(ConstantBufferPerObjectAllignedSize * 2), // 256 byte alligned. But also multiple of 64KB??
+			&CD3DX12_RESOURCE_DESC::Buffer(1024 * 64), // suze of reosurce heap must be a multiple of 64KB
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr, // no optimized clear value
 			IID_PPV_ARGS(&constantBufferUploadHeaps[i])
 		);
 		constantBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
 
-		
-		// Initialize resources to 0s.
 		ZeroMemory(&cbPerObject, sizeof(cbPerObject));
-
+		
 		CD3DX12_RANGE readRange(0, 0); // Don't intend to read from this resource on CPU
 
 		// Map resource to gpu virtual address
 		hr = constantBufferUploadHeaps[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i]));
 
 		// Remember to 256 bit allign these mem copies of constant buffer!
-		memcpy(cbvGPUAddress[i], &cbPerObject, sizeof(cbPerObject)); // matrix for cube 1
-		memcpy(cbvGPUAddress[i] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject)); // matrix cube 2
+		memcpy(cbvGPUAddress[i], &cbPerObject, sizeof(cbPerObject));
+		memcpy(cbvGPUAddress[i] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject));
 	}
-
-	//Load texture from file
-	D3D12_RESOURCE_DESC textureDesc;
-	int imageBytesPerRow;
-	BYTE* imageData;
-
-	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, "box.jpg", imageBytesPerRow);
-
-	//check if there is data in imageSize;
-	if (imageSize <= 0)
-	{
-		Running = false;
-		return false;
-	}
-
-	hr = device->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&textureDesc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
-		IID_PPV_ARGS(&textureBuffer));
-	if (FAILED(hr))
-	{
-		Running = false;
-		return false;
-	}
-	textureBuffer->SetName(L"Texture Buffer Resource Heap");
-
-	//Get upload buffersize.
-	UINT64 textureUploadBufferSize;;
-	
-	// Get size of upload heap as a multiplex of 256. Tho the last row is not restricted by this requirement.
-	device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
-
-	//create upload heap to upload the texture to the GPU
-	hr = device->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), //upload heap
-		D3D12_HEAP_FLAG_NONE, // no flags
-		&CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize),
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&textureBufferUploadHeap));
-	
-	if(FAILED(hr))
-	{
-		Running = false;
-		return false;
-	}
-	textureBufferUploadHeap->SetName(L"Texture Buffer Upload Resource Heap");
-
-	//Store vertex buffer in upload heap
-	D3D12_SUBRESOURCE_DATA textureData = {};
-	textureData.pData = imageData;
-	textureData.RowPitch = imageBytesPerRow;
-	textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
-
-	//copy upload buffer to default heap
-	UpdateSubresources(commandList, textureBuffer, textureBufferUploadHeap, 0, 0, 1, &textureData);
-
-	//transition texture deafult heap to pixel shader resource in order to get colours of the pixels.
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(textureBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-
-	//create descriptor heap to store srv
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
-	if (FAILED(hr))
-	{
-		Running = false;
-	}
-
-	//shader resource view
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = textureDesc.Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	device->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	// Now we execute the command list to upload the initial assets (triangle data)
 	commandList->Close();
@@ -686,8 +556,6 @@ bool InitD3D()
 		Running = false;
 	}
 
-	//Delete imageData to free up the heap. It's uploaded to the GPU and no longer needed.
-	delete imageData;
 
 	// create a vertex buffer view for the triangle. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
 	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
@@ -725,7 +593,7 @@ bool InitD3D()
 	XMStoreFloat4x4(&cameraViewMat, tmpMat);
 
 	// first cube
-	cube1Position = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+	cube1Position = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f); 
 	XMVECTOR posVec = XMLoadFloat4(&cube1Position);
 
 	tmpMat = XMMatrixTranslationFromVector(posVec);
@@ -784,9 +652,9 @@ void Update()
 
 	worldMat = scaleMat * translationOffsetMat * rotMat * translationMat;
 
-	wvpMat = XMLoadFloat4x4(&cube2WorldMat) * viewMat * projMat;
-	transposed = XMMatrixTranspose(wvpMat);
-	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
+	wvpMat = XMLoadFloat4x4(&cube2WorldMat) * viewMat * projMat; 
+	transposed = XMMatrixTranspose(wvpMat); 
+	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);  
 
 	memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject));
 
@@ -804,8 +672,6 @@ void UpdatePipeline()
 	{
 		Running = false;
 	}
-
-	// Reset of commands at the GPU and setting of the PSO
 	hr = commandList->Reset(commandAllocator[frameIndex], pipelineStateObject);
 	if (FAILED(hr))
 	{
@@ -819,10 +685,8 @@ void UpdatePipeline()
 	// get handle to depth/stencil buffer
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	// Sets destination of output merger
 	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-	// Clears screen
 	const float clearColor[] = { 1.0f, 0.5f, 0.0f, 1.0f };
 	commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
@@ -831,13 +695,6 @@ void UpdatePipeline()
 
 	// set root signature
 	commandList->SetGraphicsRootSignature(rootSignature);
-
-	//set descriptor heap
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mainDescriptorHeap };
-	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	//set descriptor table index 1 of the root signature. (corresponding to parameter order defined in the signature)
-	commandList->SetGraphicsRootDescriptorTable(1, mainDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	// draw triangle
 	commandList->RSSetViewports(1, &viewport);
@@ -849,10 +706,11 @@ void UpdatePipeline()
 	// first cube
 	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress());
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
-
+	
 	// second cube
 	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAllignedSize);
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
+
 
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
@@ -904,7 +762,7 @@ void Cleanup()
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);
-
+	
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		SAFE_RELEASE(renderTargets[i]);
@@ -951,36 +809,4 @@ void WaitForPreviousFrame()
 
 	// increment fenceValue for next frame
 	fenceValue[frameIndex]++;
-}
-
-int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, char* filename, int &bytesPerRow)
-{
-	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-	//fillout texture
-	resourceDescription = {};
-	resourceDescription.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resourceDescription.Alignment = 0; //0 will let runtime decide between 64k and 4mb
-	resourceDescription.Width = texWidth;
-	resourceDescription.Height = texHeight;
-	resourceDescription.DepthOrArraySize = 1;
-	resourceDescription.MipLevels = 1;
-	resourceDescription.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // We know this as we force the format during load
-	resourceDescription.SampleDesc.Count = 1;
-	resourceDescription.SampleDesc.Quality = 0;
-	resourceDescription.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resourceDescription.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-
-	bytesPerRow = texWidth * 4; // 4 is the number of bytes in the R8G8B8A8 format
-
-	// Copy the loaded pixels into imageData
-	auto imageSize = bytesPerRow * texHeight;
-	*imageData = (BYTE*)malloc(imageSize);
-	memcpy(*imageData, pixels, imageSize);
-
-	stbi_image_free(pixels);
-
-	return imageSize;
 }

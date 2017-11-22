@@ -4,8 +4,6 @@
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers.
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-
 #include <windows.h>
 #include <iostream>
 #include <d3d12.h>
@@ -17,7 +15,6 @@
 #include <Mmsystem.h>
 #include <mciapi.h>
 #include "WindowTarget.h"
-#include "stb_image.h"
 
 // this will only call release if an object exists (prevents exceptions calling release on non existant objects)
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
@@ -65,7 +62,7 @@ ID3D12Resource* indexBuffer;
 D3D12_INDEX_BUFFER_VIEW indexBufferView;
 
 //********* Tutorial 6 depth test
-ID3D12Resource* depthStencilBuffer;
+ID3D12Resource* depthStencilBuffer; 
 ID3D12DescriptorHeap* dsDescriptorHeap;
 
 //********* Tutorial 9 Cube
@@ -79,8 +76,8 @@ ID3D12Resource* constantBufferUploadHeaps[frameBufferCount]; // gpu memory where
 
 UINT8* cbvGPUAddress[frameBufferCount]; // pointer to constant buffer resource heaps
 
-										// Matrixes
-										// Remember not to pass around the matrixes. But store them in vectors first. 
+// Matrixes
+// Remember not to pass around the matrixes. But store them in vectors first. 
 DirectX::XMFLOAT4X4 cameraProjMat;
 DirectX::XMFLOAT4X4 cameraViewMat;
 
@@ -97,21 +94,6 @@ DirectX::XMFLOAT4X4 cube2RotMat;
 DirectX::XMFLOAT4 cube2PositionOffset;
 
 int numCubeIndices;
-
-//********Tutorial 10 texture
-
-ID3D12Resource* textureBuffer;
-
-int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, char* filename, int &bytesPerRow);
-
-/*
-DXGI_FORMAT GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGuid);
-WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID);
-int GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat);
-*/
-
-ID3D12DescriptorHeap* mainDescriptorHeap;
-ID3D12Resource* textureBufferUploadHeap;
 
 //*********
 //DirectX12 functions
@@ -151,17 +133,10 @@ bool Running = true;
 void mainloop();
 
 struct Vertex {
-	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT2 texCoord;
-};
-
-/*
-struct Vertex {
 	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
 	Vertex(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 color) : pos(position), color(color) {}
 	DirectX::XMFLOAT3 pos;
 	DirectX::XMFLOAT4 color;
 };
-*/
+
 
