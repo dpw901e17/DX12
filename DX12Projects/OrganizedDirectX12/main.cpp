@@ -341,8 +341,11 @@ bool InitD3D()
 	// Defines how shaders should read from vlist .
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
 	{
+		// 3 position coordinates
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+
+		// 2 texture coordinates
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 	
 	/*
