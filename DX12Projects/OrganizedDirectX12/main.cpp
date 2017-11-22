@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include <iostream>
-#include "../../scene-window-system/Window.h"
+#include  "../../scene-window-system/Window.h"
+#include "../../scene-window-system/Camera.h"
+#include "../../scene-window-system/RenderObject.h"
+#include "../../scene-window-system/Scene.h"
 
 using namespace DirectX;
-
-
 
 int WINAPI WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
@@ -23,6 +24,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
+	auto tempScene = Scene(Camera::Default(), { RenderObject(0, 0, 0) });
+	basicBoxScene = &tempScene;
 	mainloop();
 
 	//Cleanup gpu.
@@ -645,7 +648,7 @@ bool InitD3D()
 	}
 	textureBufferUploadHeap->SetName(L"Texture Buffer Upload Resource Heap");
 
-	//Store vertex buffer in upload heap
+	//Store texture in upload heap
 	D3D12_SUBRESOURCE_DATA textureData = {};
 	textureData.pData = imageData;
 	textureData.RowPitch = imageBytesPerRow;
@@ -668,7 +671,8 @@ bool InitD3D()
 		Running = false;
 	}
 
-	//shader resource view
+	//shader resource view. Allows the shader to see the texture.
+	// **adds more information about the resource than a description **
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = textureDesc.Format;
@@ -676,7 +680,7 @@ bool InitD3D()
 	srvDesc.Texture2D.MipLevels = 1;
 	device->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	// Now we execute the command list to upload the initial assets (triangle data)
+	// Now we execute the command list to upload the initial assets (cube data)
 	commandList->Close();
 	ID3D12CommandList* ppCommandLists[] = { commandList };
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -692,7 +696,7 @@ bool InitD3D()
 	//Delete imageData to free up the heap. It's uploaded to the GPU and no longer needed.
 	delete imageData;
 
-	// create a vertex buffer view for the triangle. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
+	// create a vertex buffer view for the cube. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
 	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
 	vertexBufferView.StrideInBytes = sizeof(Vertex);
 	vertexBufferView.SizeInBytes = vBufferSize;
@@ -748,6 +752,8 @@ bool InitD3D()
 
 void Update()
 {
+	// Does this overwrite matrixes before they are read by the GPU?
+
 	// rotation matrices
 	XMMATRIX rotXMat = XMMatrixRotationX(0.0001f);
 	XMMATRIX rotYMat = XMMatrixRotationY(0.0002f);
@@ -771,6 +777,7 @@ void Update()
 	XMMATRIX transposed = XMMatrixTranspose(wvpMat);
 	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
 
+	// load matrix into GPU
 	memcpy(cbvGPUAddress[frameIndex], &cbPerObject, sizeof(cbPerObject));
 
 	// CUBE 2
@@ -791,6 +798,7 @@ void Update()
 	transposed = XMMatrixTranspose(wvpMat);
 	XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
 
+	// load matrix for cube 2 into GPU with an offset of 256
 	memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAllignedSize, &cbPerObject, sizeof(cbPerObject));
 
 
@@ -809,6 +817,7 @@ void UpdatePipeline()
 	}
 
 	// Reset of commands at the GPU and setting of the PSO
+	// Make ready for recording.
 	hr = commandList->Reset(commandAllocator[frameIndex], pipelineStateObject);
 	if (FAILED(hr))
 	{
@@ -817,12 +826,13 @@ void UpdatePipeline()
 
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
+	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
 
 	// get handle to depth/stencil buffer
-	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	// Sets destination of output merger
+	// Sets destination of output merger.
+	// Also sets the depth/stencil buffer for OM use. 
 	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
 	// Clears screen
@@ -850,10 +860,12 @@ void UpdatePipeline()
 	commandList->IASetIndexBuffer(&indexBufferView);
 
 	// first cube
+	// Connects the rootsignature parameter at index 0 with the constant buffer containing the wvp matrix
 	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress());
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 
 	// second cube
+	// Again tying to rootsignature, but with an offset of ConstantBufferPerObjectAllignmentSize (256)
 	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAllignedSize);
 	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 
@@ -864,6 +876,10 @@ void UpdatePipeline()
 	{
 		Running = false;
 	}
+
+
+	// Right now we are using two matrixes in GPU memory at once
+	// Could have just one, but would require the use of UpdateSubResource calls between render commands as to update the matrix contents.
 }
 
 void Render()

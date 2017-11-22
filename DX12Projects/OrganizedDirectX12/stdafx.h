@@ -18,6 +18,7 @@
 #include <mciapi.h>
 #include "WindowTarget.h"
 #include "stb_image.h"
+#include "../../scene-window-system/Scene.h"
 
 // this will only call release if an object exists (prevents exceptions calling release on non existant objects)
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
@@ -112,6 +113,9 @@ int GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat);
 
 ID3D12DescriptorHeap* mainDescriptorHeap;
 ID3D12Resource* textureBufferUploadHeap;
+
+//Scene Objects
+Scene* basicBoxScene;
 
 //*********
 //DirectX12 functions
