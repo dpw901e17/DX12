@@ -38,6 +38,12 @@ struct CubeMatrices {
 	DirectX::XMFLOAT4 cubePosition;
 };
 
+struct Vertex {
+	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT2 texCoord;
+};
+
 //*********
 //DirectX12 variables
 
@@ -156,19 +162,4 @@ bool Running = true;
 
 // Main loop of the application
 void mainloop();
-
-struct Vertex {
-	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT2 texCoord;
-};
-
-/*
-struct Vertex {
-	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
-	Vertex(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 color) : pos(position), color(color) {}
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT4 color;
-};
-*/
 

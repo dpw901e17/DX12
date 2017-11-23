@@ -1,52 +1,31 @@
 #pragma once
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers.
-#endif
-
-#include "TargetWindow.h"
-#include <iostream>
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <D3Dcompiler.h>
-#include <DirectXMath.h>
-#include "d3dx12.h"
-#include <string>
-#include <Mmsystem.h>
-#include <mciapi.h>
-
-// this will only call release if an object exists (prevents exceptions calling release on non existant objects)
-#define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
+#include "stdafx.h"
 
 class DX12Renderer
 {
-//*********
-//DirectX12 variables
+public:
+	DX12Renderer();
+	~DX12Renderer();
 
-	static const int frameBufferCount = 3;
-	ID3D12Device* device; //the direct3d device
-	IDXGISwapChain3* swapChain; //swapchain to use for rendering
-	ID3D12CommandQueue* commandQueue; //
+
+private:
+	const int frameBufferCount = 3;
+	ID3D12Device* device; 
+	IDXGISwapChain3* swapChain; 
+	ID3D12CommandQueue* commandQueue; 
 	ID3D12DescriptorHeap* rtvDescriptorHeap;
 	ID3D12Resource* renderTargets[frameBufferCount];
 	ID3D12CommandAllocator* commandAllocator[frameBufferCount];
 	ID3D12GraphicsCommandList* commandList;
 	ID3D12Fence* fence[frameBufferCount];
 
-	public: HANDLE fenceEvent;
+	HANDLE fenceEvent;
 	UINT64 fenceValue[frameBufferCount];
 
 	int frameIndex;
-
 	int rtvDescriptorSize;
 
-//Index buffering
-	ID3D12Resource* indexBuffer;
-
-	D3D12_INDEX_BUFFER_VIEW indexBufferView;
-
-//******* Tutorial 4
-
+	//******* Tutorial 4
 	ID3D12PipelineState* pipelineStateObject;
 	ID3D12RootSignature* rootSignature;
 	D3D12_VIEWPORT viewport;
@@ -54,13 +33,72 @@ class DX12Renderer
 	ID3D12Resource* vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 
-//*********
-//DirectX12 functions
-public:
-	bool InitD3D(TargetWindow& tw);
+	//********* Tutorial 5 indexes
+	ID3D12Resource* indexBuffer;
+	D3D12_INDEX_BUFFER_VIEW indexBufferView;
+	int numCubeIndices;
+
+	//********* Tutorial 6 depth test
+	ID3D12Resource* depthStencilBuffer;
+	ID3D12DescriptorHeap* dsDescriptorHeap;
+
+	//********* Tutorial 9 Cube
+
+	// Allignment value
+	int ConstantBufferPerObjectAllignedSize = (sizeof(ConstantBufferPerObject) + 255) & ~255;
+
+	// constant buffer data sent to the GPU
+	std::vector<ConstantBufferPerObject> constantBuffers[frameBufferCount];
+
+	// gpu memory where the buffer is placed
+	ID3D12Resource* constantBufferUploadHeaps[frameBufferCount]; 
+
+	// pointer to constant buffer resource heaps
+	UINT8* cbvGPUAddress[frameBufferCount]; 
+
+	// Matrixes
+	// Remember not to pass around the matrixes. But store them in vectors first. 
+	DirectX::XMFLOAT4X4 cameraProjMat;
+	DirectX::XMFLOAT4X4 cameraViewMat;
+
+	DirectX::XMFLOAT4 cameraPosition;
+	DirectX::XMFLOAT4 cameraTarget;
+	DirectX::XMFLOAT4 cameraUp;
+
+	// Contains position, rotation and world matrices for each cube
+	std::vector<CubeMatrices> cubeMatrices;
+
+	//********Tutorial 10 texture
+	ID3D12Resource* textureBuffer;
+	ID3D12DescriptorHeap* mainDescriptorHeap;
+	ID3D12Resource* textureBufferUploadHeap;
+
+	int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, char* filename, int &bytesPerRow);
+
+
+	//********Scene Objects
+	Scene* basicBoxScene;
+
+	//*********
+	//DirectX12 functions
+	void InitD3D();
 	void Update();
-	void UpdatePipeline(TargetWindow& tw);
-	void Render(TargetWindow& tw);
-	void Cleanup(TargetWindow& tw);
-	void WaitForPreviousFrame(TargetWindow& tw);
+	void UpdatePipeline();
+	void Render();
+	void Cleanup();
+	void WaitForPreviousFrame();
+
+
+	//*********Windows
+	HWND hwnd = NULL; // handle to window
+
+	//*********Refactoring
 };
+
+DX12Renderer::DX12Renderer()
+{
+}
+
+DX12Renderer::~DX12Renderer()
+{
+}

@@ -37,6 +37,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	//Cleanup gpu.
 	WaitForPreviousFrame();
 	CloseHandle(fenceEvent);
+	Cleanup();
 
 	return 0;
 }
@@ -729,13 +730,21 @@ bool InitD3D()
 	scissorRect.bottom = Height;
 
 	// build projection and view matrix
-	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(45.0f*(3.14f / 180.0f), (float)Width / (float)Height, 0.1f, 1000.0f);
+
+	auto &camera = basicBoxScene->camera();
+
+	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(camera.FieldOfView(), camera.AspectRatio(), camera.Near(), camera.Far());
 	XMStoreFloat4x4(&cameraProjMat, tmpMat);
 
 	// set starting camera state
-	cameraPosition = XMFLOAT4(0.0f, 2.0f, -4.0f, 0.0f);
-	cameraTarget = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-	cameraUp = XMFLOAT4(0.0f, 1.0f, 0.0f, 0.0f);
+
+	auto &pos = camera.Position();
+	auto &target = camera.Target();
+	auto &up = camera.Up();
+
+	cameraPosition = XMFLOAT4(pos.x, pos.y, pos.z, pos.w);
+	cameraTarget = XMFLOAT4(target.x, target.y, target.z, target.w);
+	cameraUp = XMFLOAT4(up.x, up.y, up.z, up.w);
 
 	// build view matrix
 	XMVECTOR cPos = XMLoadFloat4(&cameraPosition);
@@ -963,11 +972,11 @@ void WaitForPreviousFrame()
 	}
 
 	// increment fenceValue for next frame
-	fenceValue[frameIndex]++;
+	++fenceValue[frameIndex];
 }
 
 int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, char* filename, int &bytesPerRow)
-{
+{	
 	int texWidth, texHeight, texChannels;
 	stbi_uc* pixels = stbi_load(filename, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
