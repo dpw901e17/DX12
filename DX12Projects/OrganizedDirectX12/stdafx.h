@@ -19,6 +19,7 @@
 #include "WindowTarget.h"
 #include "stb_image.h"
 #include "../../scene-window-system/Scene.h"
+#include <vector>
 
 // this will only call release if an object exists (prevents exceptions calling release on non existant objects)
 #define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
@@ -29,6 +30,12 @@ struct ConstantBuffer {
 
 struct ConstantBufferPerObject {
 	DirectX::XMFLOAT4X4 wvpMat;
+};
+
+struct CubeMatrices {
+	DirectX::XMFLOAT4X4 cubeWorldMat;
+	DirectX::XMFLOAT4X4 cubeRotMat;
+	DirectX::XMFLOAT4 cubePosition;
 };
 
 //*********
@@ -74,14 +81,14 @@ ID3D12DescriptorHeap* dsDescriptorHeap;
 // Allignment value
 int ConstantBufferPerObjectAllignedSize = (sizeof(ConstantBufferPerObject) + 255) & ~255; //  ~255 = -256 = 1000000000
 
-ConstantBufferPerObject cbPerObject; // constant buffer data sent to the GPU
+std::vector<ConstantBufferPerObject> constantBuffers[frameBufferCount]; // constant buffer data sent to the GPU
 
 ID3D12Resource* constantBufferUploadHeaps[frameBufferCount]; // gpu memory where the buffer is placed
 
 UINT8* cbvGPUAddress[frameBufferCount]; // pointer to constant buffer resource heaps
 
-										// Matrixes
-										// Remember not to pass around the matrixes. But store them in vectors first. 
+// Matrixes
+// Remember not to pass around the matrixes. But store them in vectors first. 
 DirectX::XMFLOAT4X4 cameraProjMat;
 DirectX::XMFLOAT4X4 cameraViewMat;
 
@@ -89,13 +96,7 @@ DirectX::XMFLOAT4 cameraPosition;
 DirectX::XMFLOAT4 cameraTarget;
 DirectX::XMFLOAT4 cameraUp;
 
-DirectX::XMFLOAT4X4 cube1WorldMat;
-DirectX::XMFLOAT4X4 cube1RotMat;
-DirectX::XMFLOAT4 cube1Position;
-
-DirectX::XMFLOAT4X4 cube2WorldMat;
-DirectX::XMFLOAT4X4 cube2RotMat;
-DirectX::XMFLOAT4 cube2PositionOffset;
+std::vector<CubeMatrices> cubeMatrices;
 
 int numCubeIndices;
 
@@ -116,6 +117,8 @@ ID3D12Resource* textureBufferUploadHeap;
 
 //Scene Objects
 Scene* basicBoxScene;
+uint64_t numOfFrames = 0;
+
 
 //*********
 //DirectX12 functions
