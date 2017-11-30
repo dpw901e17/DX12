@@ -288,4 +288,5 @@ __pycache__/
 *.xsd.cs
 
 # CppDepend
+*.cdproj
 /DX12Projects/CppDependOut/
