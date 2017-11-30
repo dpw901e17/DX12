@@ -123,7 +123,7 @@ uint64_t numOfFrames = 0;
 //*********
 //DirectX12 functions
 
-bool InitD3D();
+void InitD3D();
 void Update();
 void UpdatePipeline();
 void Render();
@@ -163,12 +163,68 @@ struct Vertex {
 	DirectX::XMFLOAT2 texCoord;
 };
 
-/*
-struct Vertex {
-	Vertex(float x, float y, float z, float r, float g, float b, float a) : pos(x, y, z), color(r, g, b, a) {}
-	Vertex(DirectX::XMFLOAT3 position, DirectX::XMFLOAT4 color) : pos(position), color(color) {}
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT4 color;
+Vertex vList[] = {
+	// front face
+	{ -0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
+	{ 0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
+
+	// right side face
+	{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+	{ 0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+	{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
+
+	// left side face
+	{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+	{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
+
+	// back face
+	{ 0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+	{ 0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+	{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+
+	// top face
+	{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+	{ 0.5f,  0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+
+	// bottom face
+	{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f },
 };
-*/
+
+// Creating the index buffer
+DWORD iList[] = {
+	// ffront face
+	0, 1, 2, // first triangle
+	0, 3, 1, // second triangle
+
+	// left face
+	4, 5, 6, // first triangle
+	4, 7, 5, // second triangle
+
+	// right face
+	8, 9, 10, // first triangle
+	8, 11, 9, // second triangle
+
+	// back face
+	12, 13, 14, // first triangle
+	12, 15, 13, // second triangle
+
+		// top face
+		16, 17, 18, // first triangle
+		16, 19, 17, // second triangle
+
+					// bottom face
+					20, 21, 22, // first triangle
+					20, 23, 21, // second triangle
+};
 

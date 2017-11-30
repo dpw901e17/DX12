@@ -54,14 +54,15 @@ void WaitForPreviousFrame() {
 	fenceValue[frameIndex]++;
 }
 
-bool InitD3D() {
-	HRESULT hr;
 
+
+ID3D12Device* CreateDevice(){
 	// -- Create the Device -- //
+	HRESULT hr;
 	IDXGIFactory4* dxgiFactory;
 	hr = CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory));
 	if (FAILED(hr)) {
-		return false;
+		throw std::runtime_error("Could not create DXGIFactory1");
 	}
 
 	IDXGIAdapter1* adapter;
@@ -94,15 +95,22 @@ bool InitD3D() {
 	}
 
 	// Create device
+
+	ID3D12Device* gpuDevice;
 	hr = D3D12CreateDevice(
 		adapter,
 		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&device) // Fancy macro
+		IID_PPV_ARGS(&gpuDevice) // Fancy macro
 	);
 	if (FAILED(hr)) {
-		return false;
+		throw std::runtime_error("Failed to create device.");
 	}
 
+	return gpuDevice;
+}
+
+void CreateCommandQueue(ID3D12Device* gpuDevice){
+	HRESULT hr;
 	// -- Create the Command Queue -- //
 	// This queue is where our command lists are placed to be executed on the GPU
 	D3D12_COMMAND_QUEUE_DESC cqDesc = {}; // Describes the type of queue. Using only default values
@@ -111,9 +119,11 @@ bool InitD3D() {
 
 	hr = device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
 	if (FAILED(hr)) {
-		return false;
+		throw std::runtime_error("Failed to create command queue.");
 	}
+}
 
+IDXGISwapChain3* CreateSwapChain() {
 	// -- Create Swap Chain with tripple buffering -- //
 	DXGI_MODE_DESC backBufferDesc = {}; // Describes our display mode
 	backBufferDesc.Width = Width; // buffer width
@@ -143,9 +153,10 @@ bool InitD3D() {
 	);
 
 	// Cast made so that we get a swapchain3. Allowing for calls to GetCurrentBackBufferIndex
-	swapChain = static_cast<IDXGISwapChain3*>(tempSwapChain);
-	frameIndex = swapChain->GetCurrentBackBufferIndex();
+	return static_cast<IDXGISwapChain3*>(tempSwapChain);
+}
 
+void CreateRTV(ID3D12Device* gpuDevice, IDXGISwapChain3* swapChain) {
 	// -- Create the render target view(RTV) descriptor heap -- //
 	// The descriptors stored here each point to the backbuffers in the swap chain
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
@@ -154,38 +165,55 @@ bool InitD3D() {
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // Not visible to shaders
 	hr = device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap));
 	if (FAILED(hr)) {
-		return false;
+		throw std::runtime_error("Create descriptor heap");
 	}
 
 	// Descriptor size can vary from GPU to GPU so we need to query for it
 	rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	// From the d3dx12.h file. Gets handle for first descriptor in heap
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	// Create an RTV for each buffer 
 	for (int i = 0; i < frameBufferCount; i++) {
 		hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
 		if (FAILED(hr)) {
-			return false;
+			throw std::runtime("Create buffer for RTV number: " + i + " failed.");
 		}
 
 		// "Create" RTV by binding swap chain buffer to rtv handle.
-		device->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
+		gpuDevice->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
 
 		// Increment handle to next descriptor location
 		rtvHandle.Offset(1, rtvDescriptorSize);
 	}
+}
 
+void CreateCommandAllocator(ID3D12Device* gpuDevice) {
 	// -- Create Command Allocator -- //
 	// One allocator per backbuffer, so that we may free allocators of lists not being executed on GPU.
 	// The command list associated will be direct. Not bundled.
+
+	HRESULT hr;
+
 	for (int i = 0; i < frameBufferCount; i++) {
 		hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
 		if (FAILED(hr)) {
 			return false;
 		}
 	}
+}
+
+bool InitD3D() {
+	HRESULT hr;
+	device = CreateDevice();
+	CreateCommandQueue(device);
+	swapChain = CreateSwapChain();
+	frameIndex = swapChain->GetCurrentBackBufferIndex();
+	CreateRTV();
+	CreateCommandAllocator()
+	
+
 
 	// -- Create Command Lists -- //
 	// One list per thread. No multithreading here so only 1.

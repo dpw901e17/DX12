@@ -22,12 +22,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
 
-	if (!InitD3D())
-	{
-		MessageBox(0, "intialization of direct3d 12 failed", "You failed", MB_OK);
-		Cleanup();
-		return 1;
-	}
+	InitD3D();
+
 
 	PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
@@ -72,44 +68,38 @@ void mainloop()
 }
 
 
-bool InitD3D()
-{
+IDXGIFactory4* CreateDXGIFactory() {
+	// -- Create the Device -- //
 	HRESULT hr;
-
 	IDXGIFactory4* dxgiFactory;
 	hr = CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory));
-
-	if (FAILED(hr))
-	{
-		return false;
+	if (FAILED(hr)) {
+		throw std::runtime_error("Could not create DXGIFactory1");
 	}
+	return dxgiFactory;
+}
 
+ID3D12Device* CreateDevice(IDXGIFactory4* dxgiFactory) {
+	
+	HRESULT hr;
 	IDXGIAdapter1* adapter;
 	int adapterIndex = 0;
 	bool adapterFound = false;
 
-	// Enable the D3D12 debug layer.
-	ID3D12Debug* debugController;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	{
-		debugController->EnableDebugLayer();
-	}
-
-	while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
-	{
+	// find gpu supporting dx12
+	while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND) {
 		DXGI_ADAPTER_DESC1 desc;
 		adapter->GetDesc1(&desc);
 
-		//Need to run with basic renderer cause GPU doesn't directly support DX12.
-		//if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-		//{
-		//	adapterIndex++;
-		//	continue;
-		//}
+		// No software device allowed
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+			adapterIndex++;
+			continue;
+		}
 
-		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_1, _uuidof(ID3D12Device), nullptr);
-		if (SUCCEEDED(hr))
-		{
+		// Check if hardware found. Send no interface.
+		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr);
+		if (SUCCEEDED(hr)) {
 			adapterFound = true;
 			break;
 		}
@@ -117,126 +107,159 @@ bool InitD3D()
 		adapterIndex++;
 	}
 
-	if (!adapterFound)
-	{
+	if (!adapterFound) {
 		return false;
 	}
 
+	// Create device
 
-	//device part
-	//We have found a suitiable device, now create it.
-	hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), reinterpret_cast<void**>(&device));
-
-	if (FAILED(hr))
-	{
-		return false;
+	ID3D12Device* gpuDevice;
+	hr = D3D12CreateDevice(
+		adapter,
+		D3D_FEATURE_LEVEL_11_0,
+		IID_PPV_ARGS(&gpuDevice) // Fancy macro
+	);
+	if (FAILED(hr)) {
+		throw std::runtime_error("Failed to create device.");
 	}
 
-	//Intialize the command queue for the device
-	D3D12_COMMAND_QUEUE_DESC cqDesc = {};
+	return gpuDevice;
+}
 
-	hr = device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&commandQueue));
-	if (FAILED(hr))
-	{
-		return false;
+void CreateCommandQueue(ID3D12Device* gpuDevice) {
+	HRESULT hr;
+	// -- Create the Command Queue -- //
+	// This queue is where our command lists are placed to be executed on the GPU
+	D3D12_COMMAND_QUEUE_DESC cqDesc = {}; // Describes the type of queue. Using only default values
+	cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	cqDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+
+	hr = device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
+	if (FAILED(hr)) {
+		throw std::runtime_error("Failed to create command queue.");
 	}
+}
 
-	//swap chain
-	//intialize the buffers for the swap chain.
-	DXGI_MODE_DESC backBufferDesc = {};
-	backBufferDesc.Width = Width;
-	backBufferDesc.Height = Height;
-	backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+IDXGISwapChain3* CreateSwapChain(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC sampleDesc) {
+	// -- Create Swap Chain with tripple buffering -- //
+	DXGI_MODE_DESC backBufferDesc = {}; // Describes our display mode
+	backBufferDesc.Width = Width; // buffer width
+	backBufferDesc.Height = Height; // buffer height
+	backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // buffer format. rgba 32 bit.
 
-	DXGI_SAMPLE_DESC sampleDesc = {};
-	sampleDesc.Count = 1;
+	// Multisampling. Not really using it, but we need at least one sample from buffer to display
+	
 
+	// Swap chain description
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-	swapChainDesc.BufferCount = frameBufferCount; // number of buffers we have
-	swapChainDesc.BufferDesc = backBufferDesc; // our back buffer description
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // this says the pipeline will render to this swap chain
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // dxgi will discard the buffer (data) after we call present
-	swapChainDesc.OutputWindow = hwnd; // handle to our window
-	swapChainDesc.SampleDesc = sampleDesc; // our multi-sampling description
-	swapChainDesc.Windowed = !FullScreen; // set to true, then if in fullscreen must call SetFullScreenState with true for full screen to get uncapped fps
+	swapChainDesc.BufferCount = frameBufferCount;
+	swapChainDesc.BufferDesc = backBufferDesc;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // pipeline render to this swap chain
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // buffer data discarded after present
+	swapChainDesc.OutputWindow = hwnd; // window handle
+	swapChainDesc.SampleDesc = sampleDesc; // multi-sampling descriptor
+	swapChainDesc.Windowed = !FullScreen; // Apperantly more complicated than it looks
 
 	IDXGISwapChain* tempSwapChain;
 
-	dxgiFactory->CreateSwapChain(commandQueue, &swapChainDesc, &tempSwapChain);
+	dxgiFactory->CreateSwapChain(
+		commandQueue,
+		&swapChainDesc,
+		&tempSwapChain // Swap chain interface stored here
+	);
 
-	swapChain = static_cast<IDXGISwapChain3*>(tempSwapChain);
+	// Cast made so that we get a swapchain3. Allowing for calls to GetCurrentBackBufferIndex
+	return static_cast<IDXGISwapChain3*>(tempSwapChain);
+}
 
-	frameIndex = swapChain->GetCurrentBackBufferIndex();
-
-	//render target
-
+void CreateRTV(ID3D12Device* gpuDevice, IDXGISwapChain3* swapChain) {
+	HRESULT hr;
+	// -- Create the render target view(RTV) descriptor heap -- //
+	// The descriptors stored here each point to the backbuffers in the swap chain
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 	rtvHeapDesc.NumDescriptors = frameBufferCount;
-	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-
-	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // Heap used for RTVs
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // Not visible to shaders
 	hr = device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap));
-
-	if (FAILED(hr))
-	{
-		return false;
+	if (FAILED(hr)) {
+		throw std::runtime_error("Create descriptor heap");
 	}
 
+	// Descriptor size can vary from GPU to GPU so we need to query for it
 	rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	// From the d3dx12.h file. Gets handle for first descriptor in heap
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	for (int i = 0; i < frameBufferCount; i++)
-	{
+	// Create an RTV for each buffer 
+	for (int i = 0; i < frameBufferCount; i++) {
 		hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
-		if (FAILED(hr))
-		{
-			return false;
+		if (FAILED(hr)) {
+			throw std::runtime_error("Create buffer for RTV failed.");
 		}
 
-		device->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
+		// "Create" RTV by binding swap chain buffer to rtv handle.
+		gpuDevice->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
+
+		// Increment handle to next descriptor location
 		rtvHandle.Offset(1, rtvDescriptorSize);
 	}
+}
 
-	//command allocators
+void CreateCommandAllocator(ID3D12Device* gpuDevice) {
+	HRESULT hr;
+	// -- Create Command Allocator -- //
+	// One allocator per backbuffer, so that we may free allocators of lists not being executed on GPU.
+	// The command list associated will be direct. Not bundled.
 
-	for (int i = 0; i < frameBufferCount; i++)
-	{
+
+	for (int i = 0; i < frameBufferCount; i++) {
 		hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
-		if (FAILED(hr))
-		{
-			return false;
+		if (FAILED(hr)) {
+			throw std::runtime_error("Create command allocator failed.");
 		}
 	}
+}
 
+void CreateCommandList(ID3D12Device* gpuDevice, ID3D12CommandAllocator* commandAllocator) {
 	// create the command list with the first allocator
-	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator[0], NULL, IID_PPV_ARGS(&commandList));
+	HRESULT hr;
+	hr = gpuDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, NULL, IID_PPV_ARGS(&commandList));
 	if (FAILED(hr))
 	{
-		return false;
+		std::runtime_error("Create command list failed.");
 	}
+}
 
-
+void CreateFences(ID3D12Device* gpuDevice, UINT64* fenceValues) {
 	//create fence
+	HRESULT hr;
 
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence[i]));
 		if (FAILED(hr))
 		{
-			return false;
+			throw std::runtime_error("Create fence event failed");
 		}
-		fenceValue[i] = 0;
+		fenceValues[i] = 0;
 	}
+}
 
-	fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	if (fenceEvent == nullptr)
+HANDLE CreateFenceEvent() {
+	HANDLE fEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	if (fEvent == nullptr)
 	{
-		return false;
+		throw std::runtime_error("Could not create fence event.");
 	}
+	return fEvent;
+}
 
+ID3D12RootSignature*  CreateRootSignature(ID3D12Device* gpuDevice) {
 	//--Create root signature
 	// root descriptor explaining where to find data in this root parameter
+	HRESULT hr;
+
 	D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
 	rootCBVDescriptor.RegisterSpace = 0;
 	rootCBVDescriptor.ShaderRegister = 0;
@@ -250,8 +273,8 @@ bool InitD3D()
 	descriptorTableRanges[0].RegisterSpace = 0; // space 0, can be zero.
 	descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; //appends to the end of the root.
 
-	//descriptor table
-	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable; 
+																									   //descriptor table
+	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); //one texture, one range
 	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; //points to the start of the range array
 
@@ -261,11 +284,11 @@ bool InitD3D()
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // To use for the vertex shader.
 
 	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParameters[1].DescriptorTable = descriptorTable; 
+	rootParameters[1].DescriptorTable = descriptorTable;
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // to use for the pixel shader
 
-	//Static sampler
-	//For bordercolour and no mipmap.
+																		//Static sampler
+																		//For bordercolour and no mipmap.
 	D3D12_STATIC_SAMPLER_DESC sampler = {};
 	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
@@ -282,7 +305,6 @@ bool InitD3D()
 	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 
-
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 	rootSignatureDesc.Init(_countof(rootParameters), // one root parameter
 		rootParameters, // pointer to our array of RUDEparameters
@@ -297,55 +319,47 @@ bool InitD3D()
 	ID3DBlob* signature;
 	hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
 	if (FAILED(hr)) {
-		return false;
+		throw std::runtime_error("Failed to serialize root signature");
 	}
 
 	// Tell device to create signature
-	hr = device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+	
+	ID3D12RootSignature* rSignature;
+	hr = gpuDevice->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rSignature));
 	if (FAILED(hr)) {
-		return false;
+		throw  std::runtime_error("Failed to create root signature");
 	}
+	return rSignature;
+}
 
-
-	//pixel and vertex shader
-	ID3DBlob* vertexShader;
+D3D12_SHADER_BYTECODE CreateShader(LPCWSTR fileName, LPCSTR pTarget) {
+	HRESULT hr;
+	ID3DBlob* shader;
 	ID3DBlob* errorBuff;
-	hr = D3DCompileFromFile(L"VertexShader.hlsl",
+	hr = D3DCompileFromFile(fileName,
 		nullptr, nullptr,
 		"main",
-		"vs_5_0",
+		pTarget,
 		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
 		0,
-		&vertexShader,
+		&shader,
 		&errorBuff);
 
 	if (FAILED(hr))
 	{
 		OutputDebugStringA((char*)errorBuff->GetBufferPointer());
-		return false;
+		// Throw exception here maybe?
 	}
 
-	D3D12_SHADER_BYTECODE vertexShaderBytecode = {};
-	vertexShaderBytecode.BytecodeLength = vertexShader->GetBufferSize();
-	vertexShaderBytecode.pShaderBytecode = vertexShader->GetBufferPointer();
-	ID3DBlob* pixelShader;
-	hr = D3DCompileFromFile(L"PixelShader.hlsl",
-		nullptr, nullptr,
-		"main",
-		"ps_5_0",
-		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
-		0,
-		&pixelShader,
-		&errorBuff);
-	if (FAILED(hr))
-	{
-		OutputDebugStringA((char*)errorBuff->GetBufferPointer());
-		return false;
-	}
+	D3D12_SHADER_BYTECODE shaderBytecode = {};
+	shaderBytecode.BytecodeLength = shader->GetBufferSize();
+	shaderBytecode.pShaderBytecode = shader->GetBufferPointer();
 
-	D3D12_SHADER_BYTECODE pixelShaderByteCode = {};
-	pixelShaderByteCode.BytecodeLength = pixelShader->GetBufferSize();
-	pixelShaderByteCode.pShaderBytecode = pixelShader->GetBufferPointer();
+	return shaderBytecode;
+}
+
+ID3D12PipelineState* CreatePipeline(ID3D12Device* gpuDevice, D3D12_SHADER_BYTECODE vertexShaderBytecode, D3D12_SHADER_BYTECODE pixelShaderBytecode, DXGI_SAMPLE_DESC sampleDesc) {
+	HRESULT hr;
 
 	//Input layer creation
 	// Defines how shaders should read from vlist .
@@ -357,14 +371,7 @@ bool InitD3D()
 		// 2 texture coordinates
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
-	//newline
-	/*
-	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DXGI_FORMAT_R32G32B32A32_FLOAT) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-	};
-	*/
+
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
 
@@ -376,7 +383,7 @@ bool InitD3D()
 	psoDesc.InputLayout = inputLayoutDesc; // Layout of the vertex buffer
 	psoDesc.pRootSignature = rootSignature; // Pointer to shader accessible data
 	psoDesc.VS = vertexShaderBytecode; // Vertex shader
-	psoDesc.PS = pixelShaderByteCode; // Pixel shader 
+	psoDesc.PS = pixelShaderBytecode; // Pixel shader 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Drawing triangles
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM; // Format of render target
 	psoDesc.SampleDesc = sampleDesc; // Type of multi-sampling to use after render eg. super sampling
@@ -387,57 +394,25 @@ bool InitD3D()
 	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // use default depth/stencil buffer
 	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT; // format of depth/stencil buffer
 
-	hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineStateObject));
+
+	ID3D12PipelineState* pso;
+	hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
 	if (FAILED(hr))
 	{
-		return false;
+		throw std::runtime_error("Failed in create pipeline");
 	}
 
-	//vertex Buffer
+	return pso;
+}
 
+D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 	// a quad
-	Vertex vList[] = {
-		// front face
-		{ -0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
-		{ 0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
-
-		// right side face
-		{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
-		{ 0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
-		{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
-
-		// left side face
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
-		{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
-
-		// back face
-		{ 0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
-		{ 0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
-
-		// top face
-		{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f },
-		{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
-		{ 0.5f,  0.5f, -0.5f, 1.0f, 1.0f },
-		{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
-
-		// bottom face
-		{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f },
-		{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
-		{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
-		{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f },
-	};
+	
 
 	int vBufferSize = sizeof(vList);
 
 	// Create default heap
-	device->CreateCommittedResource(
+	gpuDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize),
@@ -448,7 +423,7 @@ bool InitD3D()
 
 	// Create upload heap
 	ID3D12Resource* vBufferUploadHeap;
-	device->CreateCommittedResource(
+	gpuDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // upload heap
 		D3D12_HEAP_FLAG_NONE, // no flags
 		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize), // resource description for a buffer
@@ -462,42 +437,25 @@ bool InitD3D()
 	vertexData.pData = reinterpret_cast<BYTE*>(vList); // pointer to our vertex array
 	vertexData.RowPitch = vBufferSize; // size of all our triangle vertex data. 
 	vertexData.SlicePitch = vBufferSize; // also the size of our triangle vertex data
-	// RowPitch = SlicePitch, because we are working with a flat buffer resource. No need to group data in another way.
-	// If using mipmaps, the row would be a texture at a mip map level and slice would go through several mipmap levels.
+										 // RowPitch = SlicePitch, because we are working with a flat buffer resource. No need to group data in another way.
+										 // If using mipmaps, the row would be a texture at a mip map level and slice would go through several mipmap levels.
 
-	// we are now creating a command with the command list to copy the data from
-	// the upload heap to the default heap
-	UpdateSubresources(commandList, vertexBuffer, vBufferUploadHeap, 0, 0, 1, &vertexData);
+										 // we are now creating a command with the command list to copy the data from
+										 // the upload heap to the default heap
+	UpdateSubresources(cList, vertexBuffer, vBufferUploadHeap, 0, 0, 1, &vertexData);
 
 	// transition the vertex buffer data from copy destination state to vertex buffer state
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+	cList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(vertexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
-	// Creating the index buffer
-	DWORD iList[] = {
-		// ffront face
-		0, 1, 2, // first triangle
-		0, 3, 1, // second triangle
+	// create a vertex buffer view for the cube. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
+	D3D12_VERTEX_BUFFER_VIEW vBufferView;
+	vBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+	vBufferView.StrideInBytes = sizeof(Vertex);
+	vBufferView.SizeInBytes = sizeof(vList);
+	return vBufferView;
+}
 
-		// left face
-		4, 5, 6, // first triangle
-		4, 7, 5, // second triangle
-
-		 // right face
-		 8, 9, 10, // first triangle
-		 8, 11, 9, // second triangle
-
-		// back face
-		12, 13, 14, // first triangle
-		12, 15, 13, // second triangle
-
-		// top face
-		16, 17, 18, // first triangle
-		16, 19, 17, // second triangle
-
-		// bottom face
-		20, 21, 22, // first triangle
-		20, 23, 21, // second triangle
-	};
+D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 
 	int iBufferSize = sizeof(iList); // 144 bytes
 	numCubeIndices = sizeof(iList) / sizeof(DWORD);
@@ -518,11 +476,11 @@ bool InitD3D()
 	device->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize),
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(vList)),
 		D3D12_RESOURCE_STATE_GENERIC_READ, // Initial state
 		nullptr,
 		IID_PPV_ARGS(&iBufferUploadHeap));
-	vBufferUploadHeap->SetName(L"Index Buffer Upload Resource Heap");
+	iBufferUploadHeap->SetName(L"Index Buffer Upload Resource Heap");
 
 	//Store vertex buffer in upload heap
 	D3D12_SUBRESOURCE_DATA indexData = {};
@@ -530,25 +488,32 @@ bool InitD3D()
 	indexData.RowPitch = iBufferSize; // Size of index buffer
 	indexData.SlicePitch = iBufferSize; // Size of index buffer
 
-	//Create the copying command from upload to default heap
+									//Create the copying command from upload to default heap
 	UpdateSubresources(commandList, indexBuffer, iBufferUploadHeap, 0, 0, 1, &indexData);
 
 	// transition the vertex buffer data from copy destination state to vertex buffer state
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
 	// create a index buffer view for the triangle
-	indexBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
-	indexBufferView.SizeInBytes = iBufferSize;
+	
+	D3D12_INDEX_BUFFER_VIEW iBufferView;
+	iBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+	iBufferView.Format = DXGI_FORMAT_R32_UINT;
+	iBufferView.SizeInBytes = iBufferSize;
 
+	return iBufferView;
+}
+
+void CreateStencilBuffer(ID3D12Device* gpuDevice) {
+	HRESULT hr;
 	// Create the depth/stencil descriptor heap
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
 	dsvHeapDesc.NumDescriptors = 1;
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	hr = device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsDescriptorHeap));
+	hr = gpuDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsDescriptorHeap));
 	if (FAILED(hr)) {
-		Running = false;
+		throw std::runtime_error("Failed to create descriptor heap for stencil");
 	}
 
 	// Creating depth/stencil buffer
@@ -575,43 +540,52 @@ bool InitD3D()
 	dsDescriptorHeap->SetName(L"Depth/Stencil Resource Heap");
 
 	//Create view of depth/stencil buffer
-	device->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	gpuDevice->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
+void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resource** cBufferUploadHeaps, int CBufferPerObjectAllignedSize) {
+	//numOfCubes and basicBoxScene are globals
+	HRESULT hr;
 
 	// Creating resources for each framebuffer
 	for (int i = 0; i < frameBufferCount; ++i) {
 		auto numOfCubes = basicBoxScene->renderObjects().size();
 		for (auto j = 0; j < numOfCubes; ++j) {
-			constantBuffers[i].push_back(ConstantBufferPerObject());
+			cBuffers[i].push_back(ConstantBufferPerObject());
 		}
 
 		// create resource for cube(s)
 		hr = device->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(ConstantBufferPerObjectAllignedSize * numOfCubes), // 256 byte alligned. But also multiple of 64KB??
+			&CD3DX12_RESOURCE_DESC::Buffer(CBufferPerObjectAllignedSize * numOfCubes), // 256 byte alligned. But also multiple of 64KB??
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr, // no optimized clear value
-			IID_PPV_ARGS(&constantBufferUploadHeaps[i])
+			IID_PPV_ARGS(&cBufferUploadHeaps[i])
 		);
-		constantBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
+		cBufferUploadHeaps[i]->SetName(L"Constant Buffer Upload Resource Heap");
 
 		CD3DX12_RANGE readRange(0, 0); // Don't intend to read from this resource on CPU
-		 // Map resource to gpu virtual address
-		hr = constantBufferUploadHeaps[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i]));
-		
-		for(auto j=0; j < numOfCubes; ++j) {
+									   // Map resource to gpu virtual address
+		hr = cBufferUploadHeaps[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i]));
+
+		for (auto j = 0; j < numOfCubes; ++j) {
 			//constantBuffers[i] is a vector and j is the index into that vector
-			auto cbPerObject = constantBuffers[i][j];
+			auto cbPerObject = cBuffers[i][j];
 
 			// Initialize resources to 0s.
 			ZeroMemory(&cbPerObject, sizeof(cbPerObject));
 
 			// Remember to 256 bit allign these mem copies of constant buffer!
-			memcpy(cbvGPUAddress[i] + ConstantBufferPerObjectAllignedSize * j , &cbPerObject, sizeof(cbPerObject)); // matrix 
+			memcpy(cbvGPUAddress[i] + CBufferPerObjectAllignedSize * j, &cbPerObject, sizeof(cbPerObject)); // matrix 
 		}
 	}
+}
 
+void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 	//Load texture from file
+	HRESULT hr;
+
 	D3D12_RESOURCE_DESC textureDesc;
 	int imageBytesPerRow;
 	BYTE* imageData;
@@ -621,11 +595,10 @@ bool InitD3D()
 	//check if there is data in imageSize;
 	if (imageSize <= 0)
 	{
-		Running = false;
-		return false;
+		std::runtime_error("Image wasn't loaded.");
 	}
 
-	hr = device->CreateCommittedResource(
+	hr = gpuDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&textureDesc,
@@ -634,30 +607,28 @@ bool InitD3D()
 		IID_PPV_ARGS(&textureBuffer));
 	if (FAILED(hr))
 	{
-		Running = false;
-		return false;
+		std::runtime_error("Failed in creating default heap");
 	}
 	textureBuffer->SetName(L"Texture Buffer Resource Heap");
 
 	//Get upload buffersize.
 	UINT64 textureUploadBufferSize;;
-	
+
 	// Get size of upload heap as a multiplex of 256. Tho the last row is not restricted by this requirement.
-	device->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+	gpuDevice->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
 
 	//create upload heap to upload the texture to the GPU
-	hr = device->CreateCommittedResource(
+	hr = gpuDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), //upload heap
 		D3D12_HEAP_FLAG_NONE, // no flags
 		&CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize),
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
 		IID_PPV_ARGS(&textureBufferUploadHeap));
-	
-	if(FAILED(hr))
+
+	if (FAILED(hr))
 	{
-		Running = false;
-		return false;
+		throw std::runtime_error("Failed to create upload heap.");
 	}
 	textureBufferUploadHeap->SetName(L"Texture Buffer Upload Resource Heap");
 
@@ -668,20 +639,20 @@ bool InitD3D()
 	textureData.SlicePitch = imageBytesPerRow * textureDesc.Height;
 
 	//copy upload buffer to default heap
-	UpdateSubresources(commandList, textureBuffer, textureBufferUploadHeap, 0, 0, 1, &textureData);
+	UpdateSubresources(cList, textureBuffer, textureBufferUploadHeap, 0, 0, 1, &textureData);
 
 	//transition texture deafult heap to pixel shader resource in order to get colours of the pixels.
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(textureBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+	cList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(textureBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
 	//create descriptor heap to store srv
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = 1;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	hr = device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
+	hr = gpuDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
 	if (FAILED(hr))
 	{
-		Running = false;
+		throw std::runtime_error("Failed to descriptor heap");
 	}
 
 	//shader resource view. Allows the shader to see the texture.
@@ -691,7 +662,82 @@ bool InitD3D()
 	srvDesc.Format = textureDesc.Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	device->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	gpuDevice->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+	//Delete imageData to free up the heap. It's uploaded to the GPU and no longer needed.
+	delete imageData;
+}
+
+void CreateCubeMatrices(std::vector<CubeMatrices>& cubeMats) {
+	// build projection and view matrix
+	const Camera& cam = basicBoxScene->camera();
+
+
+	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(cam.FieldOfView() *(3.14f / 180.0f), cam.AspectRatio(), cam.Near(), cam.Far());
+	XMStoreFloat4x4(&cameraProjMat, tmpMat);
+
+	// set starting camera state
+	const float4& camPos = cam.CameraPosition();
+	cameraPosition = XMFLOAT4(camPos.x, camPos.y, camPos.z, camPos.w);
+
+	const float4& camTarget = cam.CameraTarget();
+	cameraTarget = XMFLOAT4(camTarget.x, camTarget.y, camTarget.z, camTarget.w);
+
+	const float4& camUp = cam.CameraUp();
+	cameraUp = XMFLOAT4(camUp.x, camUp.y, camUp.z, camUp.w);
+
+	// build view matrix
+	XMVECTOR cPos = XMLoadFloat4(&cameraPosition);
+	XMVECTOR cTarg = XMLoadFloat4(&cameraTarget);
+	XMVECTOR cUp = XMLoadFloat4(&cameraUp);
+	tmpMat = XMMatrixLookAtLH(cPos, cTarg, cUp);
+	XMStoreFloat4x4(&cameraViewMat, tmpMat);
+
+	for (auto cube : basicBoxScene->renderObjects()) {
+
+		auto cubeMat = CubeMatrices();
+		cubeMat.cubePosition = XMFLOAT4(cube.x(), cube.y(), cube.z(), 0.0f);
+		XMVECTOR posVec = XMLoadFloat4(&cubeMat.cubePosition);
+		tmpMat = XMMatrixTranslationFromVector(posVec);
+
+		XMStoreFloat4x4(&cubeMat.cubeRotMat, XMMatrixIdentity());
+
+		XMStoreFloat4x4(&cubeMat.cubeWorldMat, tmpMat);
+
+		cubeMats.push_back(cubeMat);
+	}
+}
+
+void InitD3D() {
+	HRESULT hr;
+	
+	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
+	device = CreateDevice(dxgiFactory);
+	CreateCommandQueue(device);
+
+	// Used both in swapchain and pipeline
+	DXGI_SAMPLE_DESC sampleDesc = {};
+	sampleDesc.Count = 1;
+
+	swapChain = CreateSwapChain(dxgiFactory,sampleDesc);
+	frameIndex = swapChain->GetCurrentBackBufferIndex();
+	CreateRTV(device, swapChain);
+	CreateCommandAllocator(device);
+	CreateCommandList(device, commandAllocator[0]);
+	CreateFences(device, fenceValue);
+	fenceEvent = CreateFenceEvent();
+	rootSignature = CreateRootSignature(device);
+
+	D3D12_SHADER_BYTECODE vertexShaderBytecode  = CreateShader(L"VertexShader.hlsl", "vs_5_0");
+	D3D12_SHADER_BYTECODE pixelShaderByteCode = CreateShader(L"PixelShader.hlsl", "ps_5_0");
+
+	pipelineStateObject = CreatePipeline(device, vertexShaderBytecode, pixelShaderByteCode, sampleDesc);
+	vertexBufferView = CreateVertexBuffer(device, commandList);
+	indexBufferView = CreateIndexBuffer(device, commandList);
+	CreateStencilBuffer(device);
+
+	CreateResources(constantBuffers, constantBufferUploadHeaps, ConstantBufferPerObjectAllignedSize);
+	CreateTexture(device, commandList);
 
 	// Now we execute the command list to upload the initial assets (cube data)
 	commandList->Close();
@@ -703,17 +749,9 @@ bool InitD3D()
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
 	if (FAILED(hr))
 	{
-		Running = false;
+		std::runtime_error("Failed to add signal to commandqueue");
 	}
-
-	//Delete imageData to free up the heap. It's uploaded to the GPU and no longer needed.
-	delete imageData;
-
-	// create a vertex buffer view for the cube. We get the GPU memory address to the vertex pointer using the GetGPUVirtualAddress() method
-	vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-	vertexBufferView.StrideInBytes = sizeof(Vertex);
-	vertexBufferView.SizeInBytes = vBufferSize;
-
+	
 	// Fill out the Viewport
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
@@ -728,37 +766,7 @@ bool InitD3D()
 	scissorRect.right = Width;
 	scissorRect.bottom = Height;
 
-	// build projection and view matrix
-	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(45.0f*(3.14f / 180.0f), (float)Width / (float)Height, 0.1f, 1000.0f);
-	XMStoreFloat4x4(&cameraProjMat, tmpMat);
-
-	// set starting camera state
-	cameraPosition = XMFLOAT4(0.0f, 2.0f, -4.0f, 0.0f);
-	cameraTarget = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
-	cameraUp = XMFLOAT4(0.0f, 1.0f, 0.0f, 0.0f);
-
-	// build view matrix
-	XMVECTOR cPos = XMLoadFloat4(&cameraPosition);
-	XMVECTOR cTarg = XMLoadFloat4(&cameraTarget);
-	XMVECTOR cUp = XMLoadFloat4(&cameraUp);
-	tmpMat = XMMatrixLookAtLH(cPos, cTarg, cUp);
-	XMStoreFloat4x4(&cameraViewMat, tmpMat);
-
-	for (auto cube : basicBoxScene->renderObjects()) {
-		
-		auto cubeMat = CubeMatrices();
-		cubeMat.cubePosition = XMFLOAT4(cube.x(), cube.y(), cube.z(), 0.0f);
-		XMVECTOR posVec = XMLoadFloat4(&cubeMat.cubePosition);
-		tmpMat = XMMatrixTranslationFromVector(posVec);
-
-		XMStoreFloat4x4(&cubeMat.cubeRotMat, XMMatrixIdentity());
-
-		XMStoreFloat4x4(&cubeMat.cubeWorldMat, tmpMat);
-
-		cubeMatrices.push_back(cubeMat);
-	}
-
-	return true;
+	CreateCubeMatrices(cubeMatrices);
 }
 
 void Update()
