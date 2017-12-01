@@ -22,7 +22,7 @@
 #include <vector>
 #include "SafeRelease.h"
 #include "Device.h"
-
+#include "ShaderHandler.h"
 
 struct ConstantBuffer {
 	DirectX::XMFLOAT4 colorMultiplier;

@@ -285,33 +285,8 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	return rSignature;
 }
 
-D3D12_SHADER_BYTECODE CreateShader(LPCWSTR fileName, LPCSTR pTarget) {
-	HRESULT hr;
-	ID3DBlob* shader;
-	ID3DBlob* errorBuff;
-	hr = D3DCompileFromFile(fileName,
-		nullptr, nullptr,
-		"main",
-		pTarget,
-		D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
-		0,
-		&shader,
-		&errorBuff);
 
-	if (FAILED(hr))
-	{
-		OutputDebugStringA((char*)errorBuff->GetBufferPointer());
-		// Throw exception here maybe?
-	}
-
-	D3D12_SHADER_BYTECODE shaderBytecode = {};
-	shaderBytecode.BytecodeLength = shader->GetBufferSize();
-	shaderBytecode.pShaderBytecode = shader->GetBufferPointer();
-
-	return shaderBytecode;
-}
-
-ID3D12PipelineState* CreatePipeline(const Device& device, D3D12_SHADER_BYTECODE vertexShaderBytecode, D3D12_SHADER_BYTECODE pixelShaderBytecode, DXGI_SAMPLE_DESC sampleDesc) {
+ID3D12PipelineState* CreatePipeline(const Device& device, const ShaderHandler& shaderHandler, DXGI_SAMPLE_DESC sampleDesc) {
 	HRESULT hr;
 
 	//Input layer creation
@@ -335,8 +310,8 @@ ID3D12PipelineState* CreatePipeline(const Device& device, D3D12_SHADER_BYTECODE 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 	psoDesc.InputLayout = inputLayoutDesc; // Layout of the vertex buffer
 	psoDesc.pRootSignature = rootSignature; // Pointer to shader accessible data
-	psoDesc.VS = vertexShaderBytecode; // Vertex shader
-	psoDesc.PS = pixelShaderBytecode; // Pixel shader 
+	psoDesc.VS = shaderHandler.GetVertexShaderByteCode(); // Vertex shader
+	psoDesc.PS = shaderHandler.GetPixelShaderByteCode(); // Pixel shader 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Drawing triangles
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM; // Format of render target
 	psoDesc.SampleDesc = sampleDesc; // Type of multi-sampling to use after render eg. super sampling
@@ -681,10 +656,9 @@ void InitD3D() {
 	fenceEvent = CreateFenceEvent();
 	rootSignature = CreateRootSignature(*device);
 
-	D3D12_SHADER_BYTECODE vertexShaderBytecode  = CreateShader(L"VertexShader.hlsl", "vs_5_0");
-	D3D12_SHADER_BYTECODE pixelShaderByteCode = CreateShader(L"PixelShader.hlsl", "ps_5_0");
+	ShaderHandler* shaderHandler = new ShaderHandler(L"VertexShader.hlsl", L"PixelShader.hlsl");
 
-	pipelineStateObject = CreatePipeline(*device, vertexShaderBytecode, pixelShaderByteCode, sampleDesc);
+	pipelineStateObject = CreatePipeline(*device, *shaderHandler, sampleDesc);
 	vertexBufferView = CreateVertexBuffer(*device, commandList);
 	indexBufferView = CreateIndexBuffer(*device, commandList);
 	CreateStencilBuffer(*device);
