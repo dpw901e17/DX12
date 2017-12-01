@@ -134,7 +134,7 @@ void CreateCommandQueue(ID3D12Device* gpuDevice) {
 	cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	cqDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-	hr = device->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
+	hr = gpuDevice->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
 	if (FAILED(hr)) {
 		throw std::runtime_error("Failed to create command queue.");
 	}
@@ -673,17 +673,17 @@ void CreateCubeMatrices(std::vector<CubeMatrices>& cubeMats) {
 	const Camera& cam = basicBoxScene->camera();
 
 
-	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(cam.FieldOfView() *(3.14f / 180.0f), cam.AspectRatio(), cam.Near(), cam.Far());
+	XMMATRIX tmpMat = XMMatrixPerspectiveFovLH(cam.FieldOfView(), cam.AspectRatio(), cam.Near(), cam.Far());
 	XMStoreFloat4x4(&cameraProjMat, tmpMat);
 
 	// set starting camera state
-	const float4& camPos = cam.CameraPosition();
+	const Vec4f& camPos = cam.Position();
 	cameraPosition = XMFLOAT4(camPos.x, camPos.y, camPos.z, camPos.w);
 
-	const float4& camTarget = cam.CameraTarget();
+	const Vec4f& camTarget = cam.Target();
 	cameraTarget = XMFLOAT4(camTarget.x, camTarget.y, camTarget.z, camTarget.w);
 
-	const float4& camUp = cam.CameraUp();
+	const Vec4f& camUp = cam.Up();
 	cameraUp = XMFLOAT4(camUp.x, camUp.y, camUp.z, camUp.w);
 
 	// build view matrix
