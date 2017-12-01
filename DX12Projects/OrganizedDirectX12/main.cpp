@@ -22,7 +22,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
 
-	InitD3D();
+	InitD3D(*win);
 
 
 	PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
@@ -31,7 +31,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	mainloop();
 
 	//Cleanup gpu.
-	WaitForPreviousFrame();
+	WaitForPreviousFrame(*globalSwapchain);
 	CloseHandle(fenceEvent);
 
 	return 0;
@@ -62,7 +62,7 @@ void mainloop()
 			//run gamecode
 			++numOfFrames;
 			Update();
-			Render();
+			Render(*globalSwapchain);
 		}
 	}
 }
@@ -93,39 +93,7 @@ void CreateCommandQueue(const Device& device) {
 	}
 }
 
-IDXGISwapChain3* CreateSwapChain(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC sampleDesc) {
-	// -- Create Swap Chain with tripple buffering -- //
-	DXGI_MODE_DESC backBufferDesc = {}; // Describes our display mode
-	backBufferDesc.Width = Width; // buffer width
-	backBufferDesc.Height = Height; // buffer height
-	backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // buffer format. rgba 32 bit.
-
-	// Multisampling. Not really using it, but we need at least one sample from buffer to display
-	
-
-	// Swap chain description
-	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-	swapChainDesc.BufferCount = frameBufferCount;
-	swapChainDesc.BufferDesc = backBufferDesc;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // pipeline render to this swap chain
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // buffer data discarded after present
-	swapChainDesc.OutputWindow = hwnd; // window handle
-	swapChainDesc.SampleDesc = sampleDesc; // multi-sampling descriptor
-	swapChainDesc.Windowed = !FullScreen; // Apperantly more complicated than it looks
-
-	IDXGISwapChain* tempSwapChain;
-
-	dxgiFactory->CreateSwapChain(
-		commandQueue,
-		&swapChainDesc,
-		&tempSwapChain // Swap chain interface stored here
-	);
-
-	// Cast made so that we get a swapchain3. Allowing for calls to GetCurrentBackBufferIndex
-	return static_cast<IDXGISwapChain3*>(tempSwapChain);
-}
-
-void CreateRTV(const Device& device, IDXGISwapChain3* swapChain) {
+void CreateRTV(const Device& device, SwapChainHandler swapChainHandler) {
 	HRESULT hr;
 	// -- Create the render target view(RTV) descriptor heap -- //
 	// The descriptors stored here each point to the backbuffers in the swap chain
@@ -146,7 +114,7 @@ void CreateRTV(const Device& device, IDXGISwapChain3* swapChain) {
 
 	// Create an RTV for each buffer 
 	for (int i = 0; i < frameBufferCount; i++) {
-		hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
+		hr = swapChainHandler.GetSwapChain()->GetBuffer(i, IID_PPV_ARGS(&renderTargets[i]));
 		if (FAILED(hr)) {
 			throw std::runtime_error("Create buffer for RTV failed.");
 		}
@@ -636,7 +604,7 @@ void CreateCubeMatrices(std::vector<CubeMatrices>& cubeMats) {
 	}
 }
 
-void InitD3D() {
+void InitD3D(Window window) {
 	HRESULT hr;
 	
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
@@ -647,9 +615,10 @@ void InitD3D() {
 	DXGI_SAMPLE_DESC sampleDesc = {};
 	sampleDesc.Count = 1;
 
-	swapChain = CreateSwapChain(dxgiFactory,sampleDesc);
-	frameIndex = swapChain->GetCurrentBackBufferIndex();
-	CreateRTV(*device, swapChain);
+	SwapChainHandler* swapChainHandler = new SwapChainHandler(dxgiFactory, sampleDesc, frameBufferCount, window, commandQueue);
+
+	frameIndex = swapChainHandler->GetSwapChain()->GetCurrentBackBufferIndex();
+	CreateRTV(*device, *swapChainHandler);
 	CreateCommandAllocator(*device);
 	CreateCommandList(*device, commandAllocator[0]);
 	CreateFences(*device, fenceValue);
@@ -697,6 +666,7 @@ void InitD3D() {
 
 	//setting globals
 	globalDevice = device;
+	globalSwapchain = swapChainHandler;
 }
 
 void Update()
@@ -744,7 +714,7 @@ void UpdatePipeline()
 {
 	HRESULT hr;
 
-	WaitForPreviousFrame();
+	WaitForPreviousFrame(*globalSwapchain);
 	hr = commandAllocator[frameIndex]->Reset();
 	if (FAILED(hr))
 	{
@@ -814,7 +784,7 @@ void UpdatePipeline()
 	// Could have just one, but would require the use of UpdateSubResource calls between render commands as to update the matrix contents.
 }
 
-void Render()
+void Render(SwapChainHandler swapChainHandler)
 {
 	HRESULT hr;
 
@@ -831,27 +801,27 @@ void Render()
 		Running = false;
 	}
 
-	hr = swapChain->Present(0, 0);
+	hr = swapChainHandler.GetSwapChain()->Present(0, 0);
 	if (FAILED(hr))
 	{
 		Running = false;
 	}
 }
 
-void Cleanup()
+void Cleanup(SwapChainHandler swapChainHandler)
 {
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		frameIndex = i;
-		WaitForPreviousFrame();
+		WaitForPreviousFrame(*globalSwapchain);
 	}
 
 	BOOL fs = false;
-	if (swapChain->GetFullscreenState(&fs, NULL))
-		swapChain->SetFullscreenState(false, NULL);
+	if (swapChainHandler.GetSwapChain()->GetFullscreenState(&fs, NULL))
+		swapChainHandler.GetSwapChain()->SetFullscreenState(false, NULL);
 
 	delete globalDevice;
-	SAFE_RELEASE(swapChain);
+	delete globalSwapchain;
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);
@@ -877,12 +847,12 @@ void Cleanup()
 
 }
 
-void WaitForPreviousFrame()
+void WaitForPreviousFrame(SwapChainHandler swapChainHandler)
 {
 	HRESULT hr;
 
 	// swap the current rtv buffer index so we draw on the correct buffer
-	frameIndex = swapChain->GetCurrentBackBufferIndex();
+	frameIndex = swapChainHandler.GetSwapChain()->GetCurrentBackBufferIndex();
 
 	// if the current fence value is still less than "fenceValue", then we know the GPU has not finished executing
 	// the command queue since it has not reached the "commandQueue->Signal(fence, fenceValue)" command

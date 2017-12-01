@@ -23,6 +23,7 @@
 #include "SafeRelease.h"
 #include "Device.h"
 #include "ShaderHandler.h"
+#include "SwapChainHandler.h"
 
 struct ConstantBuffer {
 	DirectX::XMFLOAT4 colorMultiplier;
@@ -43,7 +44,7 @@ struct CubeMatrices {
 
 const int frameBufferCount = 3;
 //ID3D12Device* device; //the direct3d device
-IDXGISwapChain3* swapChain; //swapchain to use for rendering
+//IDXGISwapChain3* swapChain; //swapchain to use for rendering
 ID3D12CommandQueue* commandQueue; //
 ID3D12DescriptorHeap* rtvDescriptorHeap;
 ID3D12Resource* renderTargets[frameBufferCount];
@@ -123,12 +124,12 @@ uint64_t numOfFrames = 0;
 //*********
 //DirectX12 functions
 
-void InitD3D();
+void InitD3D(Window window);
 void Update();
 void UpdatePipeline();
-void Render();
-void Cleanup();
-void WaitForPreviousFrame();
+void Render(SwapChainHandler swapChainHandler);
+void Cleanup(SwapChainHandler swapChainHandler);
+void WaitForPreviousFrame(SwapChainHandler swapChainHandler);
 
 
 //*********
@@ -230,3 +231,4 @@ DWORD iList[] = {
 
 //******************TEMPORARY GLOBALS****************************
 Device* globalDevice;
+SwapChainHandler* globalSwapchain;
