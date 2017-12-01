@@ -79,54 +79,7 @@ IDXGIFactory4* CreateDXGIFactory() {
 	return dxgiFactory;
 }
 
-ID3D12Device* CreateDevice(IDXGIFactory4* dxgiFactory) {
-	
-	HRESULT hr;
-	IDXGIAdapter1* adapter;
-	int adapterIndex = 0;
-	bool adapterFound = false;
-
-	// find gpu supporting dx12
-	while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND) {
-		DXGI_ADAPTER_DESC1 desc;
-		adapter->GetDesc1(&desc);
-
-		// No software device allowed
-		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-			adapterIndex++;
-			continue;
-		}
-
-		// Check if hardware found. Send no interface.
-		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr);
-		if (SUCCEEDED(hr)) {
-			adapterFound = true;
-			break;
-		}
-
-		adapterIndex++;
-	}
-
-	if (!adapterFound) {
-		return false;
-	}
-
-	// Create device
-
-	ID3D12Device* gpuDevice;
-	hr = D3D12CreateDevice(
-		adapter,
-		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&gpuDevice) // Fancy macro
-	);
-	if (FAILED(hr)) {
-		throw std::runtime_error("Failed to create device.");
-	}
-
-	return gpuDevice;
-}
-
-void CreateCommandQueue(ID3D12Device* gpuDevice) {
+void CreateCommandQueue(const Device& device) {
 	HRESULT hr;
 	// -- Create the Command Queue -- //
 	// This queue is where our command lists are placed to be executed on the GPU
@@ -134,7 +87,7 @@ void CreateCommandQueue(ID3D12Device* gpuDevice) {
 	cqDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	cqDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-	hr = gpuDevice->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
+	hr = device.GetDevice()->CreateCommandQueue(&cqDesc, IID_PPV_ARGS(&(commandQueue)));
 	if (FAILED(hr)) {
 		throw std::runtime_error("Failed to create command queue.");
 	}
@@ -172,7 +125,7 @@ IDXGISwapChain3* CreateSwapChain(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC sa
 	return static_cast<IDXGISwapChain3*>(tempSwapChain);
 }
 
-void CreateRTV(ID3D12Device* gpuDevice, IDXGISwapChain3* swapChain) {
+void CreateRTV(const Device& device, IDXGISwapChain3* swapChain) {
 	HRESULT hr;
 	// -- Create the render target view(RTV) descriptor heap -- //
 	// The descriptors stored here each point to the backbuffers in the swap chain
@@ -180,13 +133,13 @@ void CreateRTV(ID3D12Device* gpuDevice, IDXGISwapChain3* swapChain) {
 	rtvHeapDesc.NumDescriptors = frameBufferCount;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // Heap used for RTVs
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // Not visible to shaders
-	hr = device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap));
+	hr = device.GetDevice()->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvDescriptorHeap));
 	if (FAILED(hr)) {
 		throw std::runtime_error("Create descriptor heap");
 	}
 
 	// Descriptor size can vary from GPU to GPU so we need to query for it
-	rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	rtvDescriptorSize = device.GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	// From the d3dx12.h file. Gets handle for first descriptor in heap
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
@@ -199,14 +152,14 @@ void CreateRTV(ID3D12Device* gpuDevice, IDXGISwapChain3* swapChain) {
 		}
 
 		// "Create" RTV by binding swap chain buffer to rtv handle.
-		gpuDevice->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
+		device.GetDevice()->CreateRenderTargetView(renderTargets[i], nullptr, rtvHandle);
 
 		// Increment handle to next descriptor location
 		rtvHandle.Offset(1, rtvDescriptorSize);
 	}
 }
 
-void CreateCommandAllocator(ID3D12Device* gpuDevice) {
+void CreateCommandAllocator(const Device& device) {
 	HRESULT hr;
 	// -- Create Command Allocator -- //
 	// One allocator per backbuffer, so that we may free allocators of lists not being executed on GPU.
@@ -214,30 +167,30 @@ void CreateCommandAllocator(ID3D12Device* gpuDevice) {
 
 
 	for (int i = 0; i < frameBufferCount; i++) {
-		hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
+		hr = device.GetDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
 		if (FAILED(hr)) {
 			throw std::runtime_error("Create command allocator failed.");
 		}
 	}
 }
 
-void CreateCommandList(ID3D12Device* gpuDevice, ID3D12CommandAllocator* commandAllocator) {
+void CreateCommandList(const Device& device, ID3D12CommandAllocator* commandAllocator) {
 	// create the command list with the first allocator
 	HRESULT hr;
-	hr = gpuDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, NULL, IID_PPV_ARGS(&commandList));
+	hr = device.GetDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator, NULL, IID_PPV_ARGS(&commandList));
 	if (FAILED(hr))
 	{
 		std::runtime_error("Create command list failed.");
 	}
 }
 
-void CreateFences(ID3D12Device* gpuDevice, UINT64* fenceValues) {
+void CreateFences(const Device& device, UINT64* fenceValues) {
 	//create fence
 	HRESULT hr;
 
 	for (int i = 0; i < frameBufferCount; i++)
 	{
-		hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence[i]));
+		hr = device.GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence[i]));
 		if (FAILED(hr))
 		{
 			throw std::runtime_error("Create fence event failed");
@@ -255,7 +208,7 @@ HANDLE CreateFenceEvent() {
 	return fEvent;
 }
 
-ID3D12RootSignature*  CreateRootSignature(ID3D12Device* gpuDevice) {
+ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	//--Create root signature
 	// root descriptor explaining where to find data in this root parameter
 	HRESULT hr;
@@ -325,7 +278,7 @@ ID3D12RootSignature*  CreateRootSignature(ID3D12Device* gpuDevice) {
 	// Tell device to create signature
 	
 	ID3D12RootSignature* rSignature;
-	hr = gpuDevice->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rSignature));
+	hr = device.GetDevice()->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rSignature));
 	if (FAILED(hr)) {
 		throw  std::runtime_error("Failed to create root signature");
 	}
@@ -358,7 +311,7 @@ D3D12_SHADER_BYTECODE CreateShader(LPCWSTR fileName, LPCSTR pTarget) {
 	return shaderBytecode;
 }
 
-ID3D12PipelineState* CreatePipeline(ID3D12Device* gpuDevice, D3D12_SHADER_BYTECODE vertexShaderBytecode, D3D12_SHADER_BYTECODE pixelShaderBytecode, DXGI_SAMPLE_DESC sampleDesc) {
+ID3D12PipelineState* CreatePipeline(const Device& device, D3D12_SHADER_BYTECODE vertexShaderBytecode, D3D12_SHADER_BYTECODE pixelShaderBytecode, DXGI_SAMPLE_DESC sampleDesc) {
 	HRESULT hr;
 
 	//Input layer creation
@@ -396,7 +349,7 @@ ID3D12PipelineState* CreatePipeline(ID3D12Device* gpuDevice, D3D12_SHADER_BYTECO
 
 
 	ID3D12PipelineState* pso;
-	hr = device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
+	hr = device.GetDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
 	if (FAILED(hr))
 	{
 		throw std::runtime_error("Failed in create pipeline");
@@ -405,14 +358,14 @@ ID3D12PipelineState* CreatePipeline(ID3D12Device* gpuDevice, D3D12_SHADER_BYTECO
 	return pso;
 }
 
-D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
+D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(const Device& device, ID3D12GraphicsCommandList* cList) {
 	// a quad
 	
 
 	int vBufferSize = sizeof(vList);
 
 	// Create default heap
-	gpuDevice->CreateCommittedResource(
+	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize),
@@ -423,7 +376,7 @@ D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(ID3D12Device* gpuDevice, ID3D12Graph
 
 	// Create upload heap
 	ID3D12Resource* vBufferUploadHeap;
-	gpuDevice->CreateCommittedResource(
+	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // upload heap
 		D3D12_HEAP_FLAG_NONE, // no flags
 		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize), // resource description for a buffer
@@ -455,13 +408,13 @@ D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(ID3D12Device* gpuDevice, ID3D12Graph
 	return vBufferView;
 }
 
-D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
+D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(const Device& device, ID3D12GraphicsCommandList* cList) {
 
 	int iBufferSize = sizeof(iList); // 144 bytes
 	numCubeIndices = sizeof(iList) / sizeof(DWORD);
 
 	// Create default heap for holding index buffer
-	device->CreateCommittedResource(
+	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(iBufferSize),
@@ -473,7 +426,7 @@ D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(ID3D12Device* gpuDevice, ID3D12Graphic
 
 	// Create upload heap for holding index buffer
 	ID3D12Resource* iBufferUploadHeap;
-	device->CreateCommittedResource(
+	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(vList)),
@@ -504,14 +457,14 @@ D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(ID3D12Device* gpuDevice, ID3D12Graphic
 	return iBufferView;
 }
 
-void CreateStencilBuffer(ID3D12Device* gpuDevice) {
+void CreateStencilBuffer(const Device& device) {
 	HRESULT hr;
 	// Create the depth/stencil descriptor heap
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
 	dsvHeapDesc.NumDescriptors = 1;
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	hr = gpuDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsDescriptorHeap));
+	hr = device.GetDevice()->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsDescriptorHeap));
 	if (FAILED(hr)) {
 		throw std::runtime_error("Failed to create descriptor heap for stencil");
 	}
@@ -529,7 +482,7 @@ void CreateStencilBuffer(ID3D12Device* gpuDevice) {
 	depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
 	// Create resource and resource heap for buffer
-	device->CreateCommittedResource(
+	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, Width, Height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
@@ -540,10 +493,10 @@ void CreateStencilBuffer(ID3D12Device* gpuDevice) {
 	dsDescriptorHeap->SetName(L"Depth/Stencil Resource Heap");
 
 	//Create view of depth/stencil buffer
-	gpuDevice->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	device.GetDevice()->CreateDepthStencilView(depthStencilBuffer, &depthStencilDesc, dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resource** cBufferUploadHeaps, int CBufferPerObjectAllignedSize) {
+void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resource** cBufferUploadHeaps, int CBufferPerObjectAllignedSize, const Device& device) {
 	//numOfCubes and basicBoxScene are globals
 	HRESULT hr;
 
@@ -555,7 +508,7 @@ void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resou
 		}
 
 		// create resource for cube(s)
-		hr = device->CreateCommittedResource(
+		hr = device.GetDevice()->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 			D3D12_HEAP_FLAG_NONE,
 			&CD3DX12_RESOURCE_DESC::Buffer(CBufferPerObjectAllignedSize * numOfCubes), // 256 byte alligned. But also multiple of 64KB??
@@ -582,7 +535,7 @@ void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resou
 	}
 }
 
-void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
+void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 	//Load texture from file
 	HRESULT hr;
 
@@ -598,7 +551,7 @@ void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 		std::runtime_error("Image wasn't loaded.");
 	}
 
-	hr = gpuDevice->CreateCommittedResource(
+	hr = device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&textureDesc,
@@ -615,10 +568,10 @@ void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 	UINT64 textureUploadBufferSize;;
 
 	// Get size of upload heap as a multiplex of 256. Tho the last row is not restricted by this requirement.
-	gpuDevice->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+	device.GetDevice()->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
 
 	//create upload heap to upload the texture to the GPU
-	hr = gpuDevice->CreateCommittedResource(
+	hr = device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), //upload heap
 		D3D12_HEAP_FLAG_NONE, // no flags
 		&CD3DX12_RESOURCE_DESC::Buffer(textureUploadBufferSize),
@@ -649,7 +602,7 @@ void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 	heapDesc.NumDescriptors = 1;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	hr = gpuDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
+	hr = device.GetDevice()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
 	if (FAILED(hr))
 	{
 		throw std::runtime_error("Failed to descriptor heap");
@@ -662,7 +615,7 @@ void CreateTexture(ID3D12Device* gpuDevice, ID3D12GraphicsCommandList* cList) {
 	srvDesc.Format = textureDesc.Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	gpuDevice->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	device.GetDevice()->CreateShaderResourceView(textureBuffer, &srvDesc, mainDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	//Delete imageData to free up the heap. It's uploaded to the GPU and no longer needed.
 	delete imageData;
@@ -712,8 +665,8 @@ void InitD3D() {
 	HRESULT hr;
 	
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
-	device = CreateDevice(dxgiFactory);
-	CreateCommandQueue(device);
+	Device* device = new Device(dxgiFactory);
+	CreateCommandQueue(*device);
 
 	// Used both in swapchain and pipeline
 	DXGI_SAMPLE_DESC sampleDesc = {};
@@ -721,23 +674,23 @@ void InitD3D() {
 
 	swapChain = CreateSwapChain(dxgiFactory,sampleDesc);
 	frameIndex = swapChain->GetCurrentBackBufferIndex();
-	CreateRTV(device, swapChain);
-	CreateCommandAllocator(device);
-	CreateCommandList(device, commandAllocator[0]);
-	CreateFences(device, fenceValue);
+	CreateRTV(*device, swapChain);
+	CreateCommandAllocator(*device);
+	CreateCommandList(*device, commandAllocator[0]);
+	CreateFences(*device, fenceValue);
 	fenceEvent = CreateFenceEvent();
-	rootSignature = CreateRootSignature(device);
+	rootSignature = CreateRootSignature(*device);
 
 	D3D12_SHADER_BYTECODE vertexShaderBytecode  = CreateShader(L"VertexShader.hlsl", "vs_5_0");
 	D3D12_SHADER_BYTECODE pixelShaderByteCode = CreateShader(L"PixelShader.hlsl", "ps_5_0");
 
-	pipelineStateObject = CreatePipeline(device, vertexShaderBytecode, pixelShaderByteCode, sampleDesc);
-	vertexBufferView = CreateVertexBuffer(device, commandList);
-	indexBufferView = CreateIndexBuffer(device, commandList);
-	CreateStencilBuffer(device);
+	pipelineStateObject = CreatePipeline(*device, vertexShaderBytecode, pixelShaderByteCode, sampleDesc);
+	vertexBufferView = CreateVertexBuffer(*device, commandList);
+	indexBufferView = CreateIndexBuffer(*device, commandList);
+	CreateStencilBuffer(*device);
 
-	CreateResources(constantBuffers, constantBufferUploadHeaps, ConstantBufferPerObjectAllignedSize);
-	CreateTexture(device, commandList);
+	CreateResources(constantBuffers, constantBufferUploadHeaps, ConstantBufferPerObjectAllignedSize, *device);
+	CreateTexture(*device, commandList);
 
 	// Now we execute the command list to upload the initial assets (cube data)
 	commandList->Close();
@@ -767,6 +720,9 @@ void InitD3D() {
 	scissorRect.bottom = Height;
 
 	CreateCubeMatrices(cubeMatrices);
+
+	//setting globals
+	globalDevice = device;
 }
 
 void Update()
@@ -920,7 +876,7 @@ void Cleanup()
 	if (swapChain->GetFullscreenState(&fs, NULL))
 		swapChain->SetFullscreenState(false, NULL);
 
-	SAFE_RELEASE(device);
+	delete globalDevice;
 	SAFE_RELEASE(swapChain);
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);

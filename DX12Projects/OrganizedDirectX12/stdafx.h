@@ -20,9 +20,9 @@
 #include "stb_image.h"
 #include "../../scene-window-system/Scene.h"
 #include <vector>
+#include "SafeRelease.h"
+#include "Device.h"
 
-// this will only call release if an object exists (prevents exceptions calling release on non existant objects)
-#define SAFE_RELEASE(p) { if ( (p) ) { (p)->Release(); (p) = 0; } }
 
 struct ConstantBuffer {
 	DirectX::XMFLOAT4 colorMultiplier;
@@ -42,7 +42,7 @@ struct CubeMatrices {
 //DirectX12 variables
 
 const int frameBufferCount = 3;
-ID3D12Device* device; //the direct3d device
+//ID3D12Device* device; //the direct3d device
 IDXGISwapChain3* swapChain; //swapchain to use for rendering
 ID3D12CommandQueue* commandQueue; //
 ID3D12DescriptorHeap* rtvDescriptorHeap;
@@ -228,3 +228,5 @@ DWORD iList[] = {
 					20, 23, 21, // second triangle
 };
 
+//******************TEMPORARY GLOBALS****************************
+Device* globalDevice;
