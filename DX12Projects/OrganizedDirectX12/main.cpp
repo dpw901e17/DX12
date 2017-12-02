@@ -7,12 +7,24 @@
 
 using namespace DirectX;
 
+struct resourceInfoObject {
+	D3D12_HEAP_TYPE heapType;
+	D3D12_HEAP_FLAGS HeapFlags;
+	int  size;
+	D3D12_RESOURCE_STATES InitialResourceState;
+	D3D12_CLEAR_VALUE  *pOptimizedClearValue;
+	ID3D12Resource *resource;
+};
+
+
+
+
 int WINAPI WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
 	LPSTR lpCmdLine,
 	int nShowCmd)
 {
-	Window* win = new Window(hInstance, WindowTitle, WindowName, nShowCmd, Height, Width, FullScreen);
+	Window* win = new Window(hInstance, WindowTitle, WindowName, nShowCmd, Width, Height, FullScreen);
 	hwnd = win->GetHandle();
 
 	auto tempScene = Scene(Camera::Default(), { RenderObject(0, 0, 0),
@@ -303,10 +315,28 @@ ID3D12PipelineState* CreatePipeline(const Device& device, const ShaderHandler& s
 
 D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(const Device& device, ID3D12GraphicsCommandList* cList) {
 	// a quad
-	
-
 	int vBufferSize = sizeof(vList);
 
+	
+	resourceInfoObject defaultHeapInfoObject = resourceInfoObject();
+	defaultHeapInfoObject.heapType = D3D12_HEAP_TYPE_DEFAULT;
+	defaultHeapInfoObject.HeapFlags = D3D12_HEAP_FLAG_NONE;
+	defaultHeapInfoObject.size = vBufferSize;
+	defaultHeapInfoObject.InitialResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+	defaultHeapInfoObject.pOptimizedClearValue = nullptr;
+	defaultHeapInfoObject.resource = vertexBuffer; // need to pass this in as a reference.
+
+
+	device.GetDevice()->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(defaultHeapInfoObject.heapType),
+		defaultHeapInfoObject.HeapFlags,
+		&CD3DX12_RESOURCE_DESC::Buffer(defaultHeapInfoObject.size),
+		defaultHeapInfoObject.InitialResourceState,
+		defaultHeapInfoObject.pOptimizedClearValue,
+		IID_PPV_ARGS(&defaultHeapInfoObject.resource));
+
+
+	/*
 	// Create default heap
 	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -316,6 +346,9 @@ D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(const Device& device, ID3D12Graphics
 		nullptr,
 		IID_PPV_ARGS(&vertexBuffer));
 	vertexBuffer->SetName(L"Vertex Buffer Resource Heap");
+	*/
+
+	vertexBuffer = defaultHeapInfoObject.resource;
 
 	// Create upload heap
 	ID3D12Resource* vBufferUploadHeap;

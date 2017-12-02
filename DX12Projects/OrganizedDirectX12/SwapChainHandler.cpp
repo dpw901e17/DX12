@@ -4,8 +4,8 @@
 SwapChainHandler::SwapChainHandler(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC sampleDesc, int frameBufferCount, Window window, ID3D12CommandQueue* commandQueue) {
 	// -- Create Swap Chain with tripple buffering -- //
 	DXGI_MODE_DESC backBufferDesc = {}; // Describes our display mode
-	backBufferDesc.Width = 1000;//window.width(); // buffer width
-		backBufferDesc.Height = 800;//window.height(); // buffer height
+	backBufferDesc.Width = window.width(); // buffer width
+		backBufferDesc.Height = window.height(); // buffer height
 	backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // buffer format. rgba 32 bit.
 														// Multisampling. Not really using it, but we need at least one sample from buffer to display
 														// Swap chain description
@@ -16,7 +16,7 @@ SwapChainHandler::SwapChainHandler(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC 
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // buffer data discarded after present
 	swapChainDesc.OutputWindow = window.GetHandle(); // window handle
 	swapChainDesc.SampleDesc = sampleDesc; // multi-sampling descriptor
-	swapChainDesc.Windowed = window.GetFullscreen(); // Apperantly more complicated than it looks
+	swapChainDesc.Windowed = !window.GetFullscreen(); // Apperantly more complicated than it looks
 
 	IDXGISwapChain* tempSwapChain;
 
