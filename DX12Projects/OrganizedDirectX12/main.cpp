@@ -7,14 +7,6 @@
 
 using namespace DirectX;
 
-struct resourceInfoObject {
-	D3D12_HEAP_TYPE heapType;
-	D3D12_HEAP_FLAGS HeapFlags;
-	int  size;
-	D3D12_RESOURCE_STATES InitialResourceState;
-	D3D12_CLEAR_VALUE  *pOptimizedClearValue;
-	ID3D12Resource *resource;
-};
 
 
 
@@ -313,42 +305,24 @@ ID3D12PipelineState* CreatePipeline(const Device& device, const ShaderHandler& s
 	return pso;
 }
 
+
 D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(const Device& device, ID3D12GraphicsCommandList* cList) {
 	// a quad
 	int vBufferSize = sizeof(vList);
 
 	
-	resourceInfoObject defaultHeapInfoObject = resourceInfoObject();
-	defaultHeapInfoObject.heapType = D3D12_HEAP_TYPE_DEFAULT;
-	defaultHeapInfoObject.HeapFlags = D3D12_HEAP_FLAG_NONE;
-	defaultHeapInfoObject.size = vBufferSize;
-	defaultHeapInfoObject.InitialResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
-	defaultHeapInfoObject.pOptimizedClearValue = nullptr;
-	defaultHeapInfoObject.resource = vertexBuffer; // need to pass this in as a reference.
-
-
-	device.GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(defaultHeapInfoObject.heapType),
-		defaultHeapInfoObject.HeapFlags,
-		&CD3DX12_RESOURCE_DESC::Buffer(defaultHeapInfoObject.size),
-		defaultHeapInfoObject.InitialResourceState,
-		defaultHeapInfoObject.pOptimizedClearValue,
-		IID_PPV_ARGS(&defaultHeapInfoObject.resource));
-
-
-	/*
-	// Create default heap
-	device.GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+	resourceInfoObject defaultHeapInfo{
+		D3D12_HEAP_TYPE_DEFAULT,
 		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(vBufferSize),
-		D3D12_RESOURCE_STATE_COPY_DEST, // data from the upload heap is copied to stay here
+		vBufferSize,
+		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
-		IID_PPV_ARGS(&vertexBuffer));
-	vertexBuffer->SetName(L"Vertex Buffer Resource Heap");
-	*/
+		L"Default Heap Vertex Buffer"};
 
-	vertexBuffer = defaultHeapInfoObject.resource;
+	globalVertexDefaultHeap = new ResourceHandler(device, defaultHeapInfo);
+	vertexBuffer = globalVertexDefaultHeap->GetResource();
+
+
 
 	// Create upload heap
 	ID3D12Resource* vBufferUploadHeap;
@@ -497,6 +471,7 @@ void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resou
 		CD3DX12_RANGE readRange(0, 0); // Don't intend to read from this resource on CPU
 									   // Map resource to gpu virtual address
 		hr = cBufferUploadHeaps[i]->Map(0, &readRange, reinterpret_cast<void**>(&cbvGPUAddress[i]));
+		auto b = cBufferUploadHeaps[i];
 
 		for (auto j = 0; j < numOfCubes; ++j) {
 			//constantBuffers[i] is a vector and j is the index into that vector
@@ -506,6 +481,7 @@ void CreateResources(std::vector<ConstantBufferPerObject>* cBuffers, ID3D12Resou
 			ZeroMemory(&cbPerObject, sizeof(cbPerObject));
 
 			// Remember to 256 bit allign these mem copies of constant buffer!
+			auto a = cbvGPUAddress[i] + CBufferPerObjectAllignedSize * j;
 			memcpy(cbvGPUAddress[i] + CBufferPerObjectAllignedSize * j, &cbPerObject, sizeof(cbPerObject)); // matrix 
 		}
 	}
@@ -625,7 +601,7 @@ void CreateCubeMatrices(std::vector<CubeMatrices>& cubeMats) {
 	for (auto cube : basicBoxScene->renderObjects()) {
 
 		auto cubeMat = CubeMatrices();
-		cubeMat.cubePosition = XMFLOAT4(cube.x(), cube.y(), cube.z(), 0.0f);
+		cubeMat.cubePosition = XMFLOAT4(cube.x(), cube.y(), cube.z(), 1.0f);
 		XMVECTOR posVec = XMLoadFloat4(&cubeMat.cubePosition);
 		tmpMat = XMMatrixTranslationFromVector(posVec);
 
@@ -665,8 +641,15 @@ void InitD3D(Window window) {
 	indexBufferView = CreateIndexBuffer(*device, commandList);
 	CreateStencilBuffer(*device);
 
-	CreateResources(constantBuffers, constantBufferUploadHeaps, ConstantBufferPerObjectAllignedSize, *device);
+	//CreateResources(constantBuffers, constantBufferUploadHeaps, ConstantBufferPerObjectAllignedSize, *device);
+
+
+	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene);
+
 	CreateTexture(*device, commandList);
+
+
+
 
 	// Now we execute the command list to upload the initial assets (cube data)
 	commandList->Close();
@@ -695,7 +678,7 @@ void InitD3D(Window window) {
 	scissorRect.right = Width;
 	scissorRect.bottom = Height;
 
-	CreateCubeMatrices(cubeMatrices);
+	//CreateCubeMatrices(cubeMatrices);
 
 	//setting globals
 	globalDevice = device;
@@ -705,14 +688,14 @@ void InitD3D(Window window) {
 void Update()
 {
 	// Does this overwrite matrixes before they are read by the GPU?
+	globalCubeContainer->UpdateFrame(frameIndex);
 
-	for (auto i = 0; i < constantBuffers[frameIndex].size(); ++i) {
-
-
+	/*
+	for (auto i = 0; i < basicBoxScene->renderObjects().size(); ++i) {
 		auto &cubePosition = cubeMatrices[i].cubePosition;
 		auto &cubeRotMat = cubeMatrices[i].cubeRotMat;
 		auto &cubeWorldMat = cubeMatrices[i].cubeWorldMat;
-		auto &cbPerObject = constantBuffers[frameIndex][i];
+		//auto &cbPerObject = constantBuffers[frameIndex][i]; 
 
 		// rotation matrices
 		XMMATRIX rotXMat = XMMatrixRotationX(0.0001f*(i+1) * std::pow(-1, i));
@@ -735,12 +718,12 @@ void Update()
 		XMMATRIX projMat = XMLoadFloat4x4(&cameraProjMat);
 		XMMATRIX wvpMat = XMLoadFloat4x4(&cubeWorldMat) * viewMat * projMat;
 		XMMATRIX transposed = XMMatrixTranspose(wvpMat);
-		XMStoreFloat4x4(&cbPerObject.wvpMat, transposed);
+		XMStoreFloat4x4(&cubeWorldMat, transposed);
 
 		// load matrix into GPU
-		memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAllignedSize * i, &cbPerObject, sizeof(cbPerObject));
+		memcpy(cbvGPUAddress[frameIndex] + ConstantBufferPerObjectAllignedSize * i, &cubeWorldMat, sizeof(cubeWorldMat));
 	}
-
+	*/
 }
 
 void UpdatePipeline()
@@ -799,10 +782,24 @@ void UpdatePipeline()
 
 	// Connects the rootsignature parameter at index 0 with the constant buffer containing the wvp matrix
 	// Actual draw calls
-	for (auto i = 0; i < constantBuffers[frameIndex].size(); ++i) {
-		commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAllignedSize * i);
+
+	
+	for (auto i = 0; i < basicBoxScene->renderObjects().size(); ++i) {
+		commandList->SetGraphicsRootConstantBufferView(0, globalCubeContainer->GetVirtualAddress(i, frameIndex));
 		commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 	}
+	
+
+
+
+	/*
+	for (auto i = 0; i < constantBuffers[frameIndex].size(); ++i) {
+	commandList->SetGraphicsRootConstantBufferView(0, constantBufferUploadHeaps[frameIndex]->GetGPUVirtualAddress() + ConstantBufferPerObjectAllignedSize * i);
+	commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
+	}
+	*/
+	
+
 
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 

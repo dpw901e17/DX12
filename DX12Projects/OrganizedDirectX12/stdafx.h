@@ -20,14 +20,15 @@
 #include "stb_image.h"
 #include "../../scene-window-system/Scene.h"
 #include <vector>
+
 #include "SafeRelease.h"
 #include "Device.h"
 #include "ShaderHandler.h"
 #include "SwapChainHandler.h"
+#include "ResourceHandler.h"
+#include "CubeContainer.h"
 
-struct ConstantBuffer {
-	DirectX::XMFLOAT4 colorMultiplier;
-};
+
 
 struct ConstantBufferPerObject {
 	DirectX::XMFLOAT4X4 wvpMat;
@@ -232,3 +233,6 @@ DWORD iList[] = {
 //******************TEMPORARY GLOBALS****************************
 Device* globalDevice;
 SwapChainHandler* globalSwapchain;
+ResourceHandler* globalVertexDefaultHeap;
+ResourceHandler* globalVertexUploadHeap;
+CubeContainer* globalCubeContainer;

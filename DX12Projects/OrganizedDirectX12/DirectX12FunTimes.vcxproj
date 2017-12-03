@@ -118,8 +118,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Cube.h" />
+    <ClInclude Include="CubeContainer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Device.h" />
+    <ClInclude Include="ResourceHandler.h" />
     <ClInclude Include="SafeRelease.h" />
     <ClInclude Include="ShaderHandler.h" />
     <ClInclude Include="stb_image.h" />
@@ -127,8 +130,11 @@
     <ClInclude Include="SwapChainHandler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Cube.cpp" />
+    <ClCompile Include="CubeContainer.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="ResourceHandler.cpp" />
     <ClCompile Include="ShaderHandler.cpp" />
     <ClCompile Include="SwapChainHandler.cpp" />
   </ItemGroup>
