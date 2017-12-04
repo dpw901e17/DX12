@@ -5,7 +5,6 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	HRESULT hr;
 	auto numberOfCubes = scene.renderObjects().size();
 	
-
 	for (int i = 0; i < numberOfFrameBuffers; ++i) {
 		// create resource for cube(s)
 		ID3D12Resource* tmp;
@@ -17,7 +16,6 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 			nullptr, // no optimized clear value
 			IID_PPV_ARGS(&tmp)
 		);
-
 		tmp->SetName(L"Constant Buffer Upload Resource Heap");
 		uploadHeapResources.push_back(tmp);
 	}
@@ -32,7 +30,7 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 
 CubeContainer::~CubeContainer()
 {
-
+	// Clean up uploadheaps
 }
 
 void CubeContainer::UpdateFrame(int frameIndex)

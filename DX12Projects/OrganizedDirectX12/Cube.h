@@ -9,8 +9,8 @@
 class Cube {
 public:
 	Cube(int index, std::vector<ID3D12Resource*> uploadHeapResources,
-		const DirectX::XMFLOAT4X4& cameraProjMat, const DirectX::XMFLOAT4X4& cameraViewMat,
-		RenderObject renderObject);
+		const DirectX::XMFLOAT4X4& cameraProjMat, const DirectX::XMFLOAT4X4& cameraViewMat, 
+		const RenderObject& renderObject);
 	~Cube();
 
 	UINT8* GetMappedGpuAddress(int frameBufferIndex) const;

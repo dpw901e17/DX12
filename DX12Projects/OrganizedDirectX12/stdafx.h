@@ -27,18 +27,8 @@
 #include "SwapChainHandler.h"
 #include "ResourceHandler.h"
 #include "CubeContainer.h"
+#include "ResourceFactory.h"
 
-
-
-struct ConstantBufferPerObject {
-	DirectX::XMFLOAT4X4 wvpMat;
-};
-
-struct CubeMatrices {
-	DirectX::XMFLOAT4X4 cubeWorldMat;
-	DirectX::XMFLOAT4X4 cubeRotMat;
-	DirectX::XMFLOAT4 cubePosition;
-};
 
 //*********
 //DirectX12 variables
@@ -67,7 +57,6 @@ ID3D12PipelineState* pipelineStateObject;
 ID3D12RootSignature* rootSignature;
 D3D12_VIEWPORT viewport;
 D3D12_RECT scissorRect;
-ID3D12Resource* vertexBuffer;
 D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 
 //********* Tutorial 5 indexes
@@ -80,25 +69,9 @@ ID3D12DescriptorHeap* dsDescriptorHeap;
 
 //********* Tutorial 9 Cube
 
-// Allignment value
-int ConstantBufferPerObjectAllignedSize = (sizeof(ConstantBufferPerObject) + 255) & ~255; //  ~255 = -256 = 1000000000
-
-std::vector<ConstantBufferPerObject> constantBuffers[frameBufferCount]; // constant buffer data sent to the GPU
-
-ID3D12Resource* constantBufferUploadHeaps[frameBufferCount]; // gpu memory where the buffer is placed
-
-UINT8* cbvGPUAddress[frameBufferCount]; // pointer to constant buffer resource heaps
 
 // Matrixes
 // Remember not to pass around the matrixes. But store them in vectors first. 
-DirectX::XMFLOAT4X4 cameraProjMat;
-DirectX::XMFLOAT4X4 cameraViewMat;
-
-DirectX::XMFLOAT4 cameraPosition;
-DirectX::XMFLOAT4 cameraTarget;
-DirectX::XMFLOAT4 cameraUp;
-
-std::vector<CubeMatrices> cubeMatrices;
 
 int numCubeIndices;
 

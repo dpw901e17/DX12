@@ -10,7 +10,6 @@
 #include "../../scene-window-system/Camera.h"
 
 
-
 class CubeContainer {
 public:
 	CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene);

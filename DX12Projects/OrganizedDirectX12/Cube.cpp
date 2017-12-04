@@ -2,7 +2,7 @@
 
 Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 	const DirectX::XMFLOAT4X4& cameraProj, const DirectX::XMFLOAT4X4& cameraView, 
-	RenderObject renderObject)
+	const RenderObject& renderObject)
 {
 	HRESULT hr;
 
@@ -21,18 +21,16 @@ Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 		auto mappedGpuAddress = baseGpuAddress + constantBufferPerObjectAllignedSize * index;
 		mappedGpuAddresses.push_back(mappedGpuAddress);
 
-
-		auto virtualGpuAdress = uploadHeapResources[i]->GetGPUVirtualAddress() + constantBufferPerObjectAllignedSize * index;
-		virtualGpuAdresses.push_back(virtualGpuAdress);
-
-
 		//Ínitializing memory at GPU location to 0s
 		ZeroMemory(&cubeWorldMat, sizeof(cubeWorldMat));
 
 		// Remember to 256 bit allign these mem copies of constant buffer!
 		memcpy(mappedGpuAddress, &cubeWorldMat, sizeof(cubeWorldMat));
-	}
 
+		// Calculate virtual address
+		auto virtualGpuAdress = uploadHeapResources[i]->GetGPUVirtualAddress() + constantBufferPerObjectAllignedSize * index;
+		virtualGpuAdresses.push_back(virtualGpuAdress);
+	}
 
 	// Matrix initialization
 	cameraProjMat = cameraProj;
@@ -40,7 +38,7 @@ Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 
 	DirectX::XMStoreFloat4x4(&cubeRotMat, DirectX::XMMatrixIdentity());
 
-	cubePosition = DirectX::XMFLOAT4(renderObject.x(), renderObject.y(), renderObject.z(), 0.0f);
+	cubePosition = DirectX::XMFLOAT4(renderObject.x(), renderObject.y(), renderObject.z(), 1.0f);
 	DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&cubePosition);
 
 	auto tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
@@ -88,6 +86,5 @@ void Cube::UpdateWVPMatrix(int frameBufferIndex)
 
 	// load matrix into GPU
 	memcpy(mappedGpuAddresses[frameBufferIndex], &cubeWorldMat, sizeof(cubeWorldMat));
-
 }
 

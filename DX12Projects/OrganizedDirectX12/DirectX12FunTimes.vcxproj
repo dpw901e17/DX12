@@ -122,7 +122,7 @@
     <ClInclude Include="CubeContainer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Device.h" />
-    <ClInclude Include="ResourceHandler.h" />
+    <ClInclude Include="ResourceFactory.h" />
     <ClInclude Include="SafeRelease.h" />
     <ClInclude Include="ShaderHandler.h" />
     <ClInclude Include="stb_image.h" />
@@ -134,7 +134,7 @@
     <ClCompile Include="CubeContainer.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="ResourceHandler.cpp" />
+    <ClCompile Include="ResourceFactory.cpp" />
     <ClCompile Include="ShaderHandler.cpp" />
     <ClCompile Include="SwapChainHandler.cpp" />
   </ItemGroup>
