@@ -4,21 +4,14 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 {
 	HRESULT hr;
 	auto numberOfCubes = scene.renderObjects().size();
-	
+	auto sizeInBytes = constantBufferPerObjectAllignedSize * numberOfCubes;
+
 	for (int i = 0; i < numberOfFrameBuffers; ++i) {
 		// create resource for cube(s)
-		ID3D12Resource* tmp;
-		hr = device.GetDevice()->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(constantBufferPerObjectAllignedSize * numberOfCubes), // 256 byte alligned. But also multiple of 64KB??
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr, // no optimized clear value
-			IID_PPV_ARGS(&tmp)
-		);
-		tmp->SetName(L"Constant Buffer Upload Resource Heap");
-		uploadHeapResources.push_back(tmp);
+		ID3D12Resource* uploadHeapResource = ResourceFactory::CreateUploadHeap(device, sizeInBytes, L"Constant Buffer Upload Resource Heap");
+		uploadHeapResources.push_back(uploadHeapResource);
 	}
+
 	auto cameraViewMat = CreateViewMatrix(scene.camera());
 	auto cameraProjMat = CreateProjectionMatrix(scene.camera());
 

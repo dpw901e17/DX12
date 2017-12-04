@@ -6,6 +6,7 @@
 
 #include <vector>
 #include "Device.h"
+#include "ResourceFactory.h"
 #include "../../scene-window-system/Scene.h"
 #include "../../scene-window-system/Camera.h"
 
