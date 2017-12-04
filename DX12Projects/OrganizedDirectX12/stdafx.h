@@ -28,6 +28,8 @@
 #include "ResourceHandler.h"
 #include "CubeContainer.h"
 #include "ResourceFactory.h"
+#include "PipelineStateHandler.h"
+#include <array>
 
 
 //*********

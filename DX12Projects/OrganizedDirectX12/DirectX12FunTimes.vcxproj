@@ -122,6 +122,7 @@
     <ClInclude Include="CubeContainer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Device.h" />
+    <ClInclude Include="PipelineStateHandler.h" />
     <ClInclude Include="ResourceFactory.h" />
     <ClInclude Include="SafeRelease.h" />
     <ClInclude Include="ShaderHandler.h" />
@@ -134,6 +135,7 @@
     <ClCompile Include="CubeContainer.cpp" />
     <ClCompile Include="Device.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="PipelineStateHandler.cpp" />
     <ClCompile Include="ResourceFactory.cpp" />
     <ClCompile Include="ShaderHandler.cpp" />
     <ClCompile Include="SwapChainHandler.cpp" />

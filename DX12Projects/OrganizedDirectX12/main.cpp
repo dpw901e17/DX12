@@ -67,7 +67,6 @@ void mainloop()
 	}
 }
 
-
 IDXGIFactory4* CreateDXGIFactory() {
 	// -- Create the Device -- //
 	HRESULT hr;
@@ -253,54 +252,20 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	return rSignature;
 }
 
-
-ID3D12PipelineState* CreatePipeline(const Device& device, const ShaderHandler& shaderHandler, DXGI_SAMPLE_DESC sampleDesc) {
-	HRESULT hr;
-
+D3D12_INPUT_LAYOUT_DESC  inputLayout() {
 	//Input layer creation
 	// Defines how shaders should read from vlist .
-	D3D12_INPUT_ELEMENT_DESC inputLayout[] =
-	{
-		// 3 position coordinates
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 
-		// 2 texture coordinates
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-	};
+	auto inputLayout = new D3D12_INPUT_ELEMENT_DESC[2];
+	inputLayout[0] = D3D12_INPUT_ELEMENT_DESC{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+	inputLayout[1] = D3D12_INPUT_ELEMENT_DESC{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
 
-
-	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
-
-	inputLayoutDesc.NumElements = sizeof(inputLayout) / sizeof(D3D12_INPUT_ELEMENT_DESC);
+	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
+	inputLayoutDesc.NumElements = 2;
 	inputLayoutDesc.pInputElementDescs = inputLayout;
 
-	//Pipeline object
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-	psoDesc.InputLayout = inputLayoutDesc; // Layout of the vertex buffer
-	psoDesc.pRootSignature = rootSignature; // Pointer to shader accessible data
-	psoDesc.VS = shaderHandler.GetVertexShaderByteCode(); // Vertex shader
-	psoDesc.PS = shaderHandler.GetPixelShaderByteCode(); // Pixel shader 
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // Drawing triangles
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM; // Format of render target
-	psoDesc.SampleDesc = sampleDesc; // Type of multi-sampling to use after render eg. super sampling
-	psoDesc.SampleMask = 0xffffffff;   // Mask used in multi-sampling
-	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // default rasterizer used
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // default blend stage used at the end of pipeline
-	psoDesc.NumRenderTargets = 1; // only drawing to one target per pipeline
-	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // use default depth/stencil buffer
-	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT; // format of depth/stencil buffer
-
-
-	ID3D12PipelineState* pso;
-	hr = device.GetDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
-	if (FAILED(hr))
-	{
-		throw std::runtime_error("Failed in create pipeline");
-	}
-
-	return pso;
+	return inputLayoutDesc;
 }
-
 
 D3D12_VERTEX_BUFFER_VIEW CreateVertexBuffer(const Device& device, ID3D12GraphicsCommandList* cList) {
 	// a quad
@@ -353,7 +318,6 @@ D3D12_INDEX_BUFFER_VIEW CreateIndexBuffer(const Device& device, ID3D12GraphicsCo
 	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(indexBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
 	// create a index buffer view for the triangle
-	
 	D3D12_INDEX_BUFFER_VIEW iBufferView;
 	iBufferView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 	iBufferView.Format = DXGI_FORMAT_R32_UINT;
@@ -402,12 +366,10 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 		std::runtime_error("Image wasn't loaded.");
 	}
 
-
-
 	ID3D12Resource* textureBuffer = ResourceFactory::CreateDefaultTextureHeap(device, textureDesc, L"Texture Buffer Resource Heap");
 
 	//Get upload buffersize.
-	UINT64 textureUploadBufferSize;;
+	UINT64 textureUploadBufferSize;
 
 	// Get size of upload heap as a multiplex of 256. Tho the last row is not restricted by this requirement.
 	device.GetDevice()->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
@@ -431,15 +393,16 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = 1;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV; // What is UAV?
 	hr = device.GetDevice()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mainDescriptorHeap));
 	if (FAILED(hr))
 	{
-		throw std::runtime_error("Failed to descriptor heap");
+		throw std::runtime_error("Failed to create descriptor heap");
 	}
 
 	//shader resource view. Allows the shader to see the texture.
 	// **adds more information about the resource than a description **
+	// mainDescriptorHeap contains the view
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = textureDesc.Format;
@@ -474,7 +437,11 @@ void InitD3D(Window window) {
 
 	ShaderHandler* shaderHandler = new ShaderHandler(L"VertexShader.hlsl", L"PixelShader.hlsl");
 
-	pipelineStateObject = CreatePipeline(*device, *shaderHandler, sampleDesc);
+	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = inputLayout();
+
+	PipelineStateHandler a(*device, *shaderHandler, inputLayoutDesc, sampleDesc, *rootSignature);
+	pipelineStateObject = a.GetPipelineStateObject();
+
 	vertexBufferView = CreateVertexBuffer(*device, commandList);
 	indexBufferView = CreateIndexBuffer(*device, commandList);
 	CreateStencilBuffer(*device);
@@ -589,7 +556,6 @@ void UpdatePipeline()
 	{
 		Running = false;
 	}
-
 
 	// Right now we are using two matrixes in GPU memory at once
 	// Could have just one, but would require the use of UpdateSubResource calls between render commands as to update the matrix contents.
