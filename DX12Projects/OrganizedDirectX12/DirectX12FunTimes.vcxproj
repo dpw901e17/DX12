@@ -118,6 +118,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CommandListHandler.h" />
     <ClInclude Include="Cube.h" />
     <ClInclude Include="CubeContainer.h" />
     <ClInclude Include="d3dx12.h" />
@@ -131,6 +132,7 @@
     <ClInclude Include="SwapChainHandler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommandListHandler.cpp" />
     <ClCompile Include="Cube.cpp" />
     <ClCompile Include="CubeContainer.cpp" />
     <ClCompile Include="Device.cpp" />
@@ -142,6 +144,12 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PixelShader.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="RedPixelShader.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>

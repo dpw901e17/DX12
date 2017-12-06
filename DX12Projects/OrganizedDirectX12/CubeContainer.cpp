@@ -12,13 +12,24 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 		uploadHeapResources.push_back(uploadHeapResource);
 	}
 
-	auto cameraViewMat = CreateViewMatrix(scene.camera());
-	auto cameraProjMat = CreateProjectionMatrix(scene.camera());
+	cameraViewMat = CreateViewMatrix(scene.camera());
+	cameraProjMat = CreateProjectionMatrix(scene.camera());
 
 	// Initialize all cubes with an index
 	for (auto i = 0; i < numberOfCubes; ++i) {
 		cubes.push_back(Cube(i, uploadHeapResources, cameraProjMat, cameraViewMat, scene.renderObjects()[i]));
 	}
+}
+
+CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t startIndex, const size_t count)
+{
+	for (auto i = 0; i < count; ++i) {
+		cubes.push_back(cubeContainer.cubes.at(i+startIndex));
+	}
+
+	uploadHeapResources = cubeContainer.GetUploadHeapResources();
+	cameraViewMat = cubeContainer.GetViewMatrix();
+	cameraProjMat = cubeContainer.GetProjectionMatrix();
 }
 
 CubeContainer::~CubeContainer()
@@ -33,9 +44,29 @@ void CubeContainer::UpdateFrame(int frameIndex)
 	}
 }
 
-D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetVirtualAddress(int cubeIndex, int frameBufferIndex)
+D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetVirtualAddress(int cubeIndex, int frameBufferIndex) const
 {
 	return cubes[cubeIndex].GetVirtualGpuAddress(frameBufferIndex);
+}
+
+const std::vector<ID3D12Resource*> CubeContainer::GetUploadHeapResources() const
+{
+	return uploadHeapResources;
+}
+
+const DirectX::XMFLOAT4X4 CubeContainer::GetProjectionMatrix() const
+{
+	return cameraProjMat;
+}
+
+const DirectX::XMFLOAT4X4 CubeContainer::GetViewMatrix() const
+{
+	return cameraViewMat;
+}
+
+const std::vector<Cube> CubeContainer::GetCubes() const
+{
+	return cubes;
 }
 
 DirectX::XMFLOAT4X4 CubeContainer::CreateProjectionMatrix(Camera cam)

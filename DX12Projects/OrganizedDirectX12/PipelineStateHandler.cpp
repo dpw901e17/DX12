@@ -2,9 +2,6 @@
 
 PipelineStateHandler::PipelineStateHandler(const Device& device, const ShaderHandler& shaderHandler, D3D12_INPUT_LAYOUT_DESC& inputLayoutDesc, DXGI_SAMPLE_DESC& sampleDesc, ID3D12RootSignature& rootSignature)
 {
-	
-
-	//Pipeline object
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 	psoDesc.InputLayout = inputLayoutDesc; // Layout of the vertex buffer
 	psoDesc.pRootSignature = &rootSignature; // Pointer to shader accessible data
@@ -30,6 +27,7 @@ PipelineStateHandler::PipelineStateHandler(const Device& device, const ShaderHan
 
 PipelineStateHandler::~PipelineStateHandler()
 {
+	SAFE_RELEASE(pipelineStateObject);
 }
 
 ID3D12PipelineState* PipelineStateHandler::GetPipelineStateObject() const

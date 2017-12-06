@@ -2,6 +2,7 @@
 #include<d3d12.h>
 #include "Device.h"
 #include "ShaderHandler.h"
+#include "SafeRelease.h"
 
 class PipelineStateHandler {
 public:

@@ -27,7 +27,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
-
 	mainloop();
 
 	//Cleanup gpu.
@@ -38,12 +37,13 @@ int WINAPI WinMain(HINSTANCE hInstance,
 }
 
 
-//Mainloop keeps an eye out if we are recieving
-//any message from the callback function. If we are
-//break the loop and display the message
-//if we do not, keep running the game.
+
 void mainloop()
 {
+	//Mainloop keeps an eye out if we are recieving
+	//any message from the callback function. If we are
+	//break the loop and display the message
+	//if we do not, keep running the game.
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
 
@@ -132,7 +132,6 @@ void CreateCommandAllocator(const Device& device) {
 	// One allocator per backbuffer, so that we may free allocators of lists not being executed on GPU.
 	// The command list associated will be direct. Not bundled.
 
-
 	for (int i = 0; i < frameBufferCount; i++) {
 		hr = device.GetDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator[i]));
 		if (FAILED(hr)) {
@@ -193,7 +192,7 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	descriptorTableRanges[0].RegisterSpace = 0; // space 0, can be zero.
 	descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; //appends to the end of the root.
 
-																									   //descriptor table
+	//descriptor table
 	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); //one texture, one range
 	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; //points to the start of the range array
@@ -207,8 +206,8 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	rootParameters[1].DescriptorTable = descriptorTable;
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // to use for the pixel shader
 
-																		//Static sampler
-																		//For bordercolour and no mipmap.
+	//Static sampler
+	//For bordercolour and no mipmap.
 	D3D12_STATIC_SAMPLER_DESC sampler = {};
 	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
@@ -255,7 +254,6 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 D3D12_INPUT_LAYOUT_DESC  inputLayout() {
 	//Input layer creation
 	// Defines how shaders should read from vlist .
-
 	auto inputLayout = new D3D12_INPUT_ELEMENT_DESC[2];
 	inputLayout[0] = D3D12_INPUT_ELEMENT_DESC{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
 	inputLayout[1] = D3D12_INPUT_ELEMENT_DESC{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
@@ -436,11 +434,13 @@ void InitD3D(Window window) {
 	rootSignature = CreateRootSignature(*device);
 
 	ShaderHandler* shaderHandler = new ShaderHandler(L"VertexShader.hlsl", L"PixelShader.hlsl");
+	ShaderHandler* shaderHandler2 = new ShaderHandler(L"VertexShader.hlsl", L"RedPixelShader.hlsl");
 
+	//pipeline
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = inputLayout();
+	globalPipeline = new PipelineStateHandler(*device, *shaderHandler, inputLayoutDesc, sampleDesc, *rootSignature);
+	globalPipeline2 = new PipelineStateHandler(*device, *shaderHandler2, inputLayoutDesc, sampleDesc, *rootSignature);
 
-	PipelineStateHandler a(*device, *shaderHandler, inputLayoutDesc, sampleDesc, *rootSignature);
-	pipelineStateObject = a.GetPipelineStateObject();
 
 	vertexBufferView = CreateVertexBuffer(*device, commandList);
 	indexBufferView = CreateIndexBuffer(*device, commandList);
@@ -480,6 +480,9 @@ void InitD3D(Window window) {
 	//setting globals
 	globalDevice = device;
 	globalSwapchain = swapChainHandler;
+	globalCommandListHandler = new CommandListHandler(*device, frameBufferCount);
+	globalCommandListHandler2 = new CommandListHandler(*device, frameBufferCount);
+
 }
 
 void Update()
@@ -490,9 +493,17 @@ void Update()
 
 void UpdatePipeline()
 {
+	//swapchain, pipeline, rendertargets, rtvDescriptorHeap
+	//dsDescriptorHeap, rootSignature, mainDescriptorHeap, viewPort, ScissorRect,
+	//VertexBufferView, indexBufferView, globalCubeContainer 
+
+
 	HRESULT hr;
 
 	WaitForPreviousFrame(*globalSwapchain);
+	
+
+	/*
 	hr = commandAllocator[frameIndex]->Reset();
 	if (FAILED(hr))
 	{
@@ -500,8 +511,7 @@ void UpdatePipeline()
 	}
 
 	// Reset of commands at the GPU and setting of the PSO
-	// Make ready for recording.
-	hr = commandList->Reset(commandAllocator[frameIndex], pipelineStateObject);
+	hr = commandList->Reset(commandAllocator[frameIndex], globalPipeline->GetPipelineStateObject());
 	if (FAILED(hr))
 	{
 		Running = false;
@@ -545,6 +555,14 @@ void UpdatePipeline()
 	// Connects the rootsignature parameter at index 0 with the constant buffer containing the wvp matrix
 	// Actual draw calls
 	for (auto i = 0; i < basicBoxScene->renderObjects().size(); ++i) {
+
+		if (i % 2 == 0) {
+			commandList->SetPipelineState(globalPipeline->GetPipelineStateObject());
+		}
+		else {
+			commandList->SetPipelineState(globalPipeline2->GetPipelineStateObject());
+		}
+
 		commandList->SetGraphicsRootConstantBufferView(0, globalCubeContainer->GetVirtualAddress(i, frameIndex));
 		commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 	}
@@ -556,18 +574,30 @@ void UpdatePipeline()
 	{
 		Running = false;
 	}
-
 	// Right now we are using two matrixes in GPU memory at once
 	// Could have just one, but would require the use of UpdateSubResource calls between render commands as to update the matrix contents.
+	*/
 }
 
 void Render(SwapChainHandler swapChainHandler)
 {
 	HRESULT hr;
 
-	UpdatePipeline();
+	//UpdatePipeline();
 
-	ID3D12CommandList* ppCommandLists[] = { commandList };
+	WaitForPreviousFrame(*globalSwapchain);
+	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	globalCommandListHandler->RecordSetup(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView, true);
+	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, 1) , numCubeIndices);
+	globalCommandListHandler->Close();
+
+	globalCommandListHandler2->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	globalCommandListHandler2->RecordSetup(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView, false);
+	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, 1, 3), numCubeIndices);
+	globalCommandListHandler2->RecordClosing(renderTargets);
+	globalCommandListHandler2->Close();
+
+	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList()};
 
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
@@ -609,8 +639,9 @@ void Cleanup(SwapChainHandler swapChainHandler)
 		SAFE_RELEASE(commandAllocator[i]);
 		SAFE_RELEASE(fence[i]);
 	};
+	delete globalCommandListHandler;
 
-	SAFE_RELEASE(pipelineStateObject);
+	delete globalPipeline;
 	SAFE_RELEASE(rootSignature);
 //	SAFE_RELEASE(vertexBuffer);
 	SAFE_RELEASE(indexBuffer);

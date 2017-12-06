@@ -2,7 +2,7 @@
 #include "d3dx12.h"
 #include "Device.h"
 
-static class ResourceFactory {
+class ResourceFactory {
 
 public:
 	static ID3D12Resource* CreateUploadHeap(const Device& device, const int& sizeInBytes, LPCWSTR name);

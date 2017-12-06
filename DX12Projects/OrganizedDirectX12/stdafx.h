@@ -20,6 +20,7 @@
 #include "stb_image.h"
 #include "../../scene-window-system/Scene.h"
 #include <vector>
+#include <array>
 
 #include "SafeRelease.h"
 #include "Device.h"
@@ -29,7 +30,8 @@
 #include "CubeContainer.h"
 #include "ResourceFactory.h"
 #include "PipelineStateHandler.h"
-#include <array>
+#include "CommandListHandler.h"
+
 
 
 //*********
@@ -83,11 +85,6 @@ ID3D12Resource* textureBuffer;
 
 int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescription, char* filename, int &bytesPerRow);
 
-/*
-DXGI_FORMAT GetDXGIFormatFromWICFormat(WICPixelFormatGUID& wicFormatGuid);
-WICPixelFormatGUID GetConvertToWICFormat(WICPixelFormatGUID& wicFormatGUID);
-int GetDXGIFormatBitsPerPixel(DXGI_FORMAT& dxgiFormat);
-*/
 
 ID3D12DescriptorHeap* mainDescriptorHeap;
 ID3D12Resource* textureBufferUploadHeap;
@@ -211,3 +208,7 @@ SwapChainHandler* globalSwapchain;
 ResourceHandler* globalVertexDefaultHeap;
 ResourceHandler* globalVertexUploadHeap;
 CubeContainer* globalCubeContainer;
+PipelineStateHandler* globalPipeline;
+PipelineStateHandler* globalPipeline2;
+CommandListHandler* globalCommandListHandler;
+CommandListHandler* globalCommandListHandler2;

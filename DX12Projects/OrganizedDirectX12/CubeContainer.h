@@ -13,12 +13,17 @@
 
 class CubeContainer {
 public:
-	CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene);
+	CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene);
+	CubeContainer(const CubeContainer& cubeContainer, const size_t startIndex, const size_t count);
 	~CubeContainer();
 
 	void UpdateFrame(int frameIndex);
-	D3D12_GPU_VIRTUAL_ADDRESS GetVirtualAddress(int cubeIndex, int frameBufferIndex);
-	
+	D3D12_GPU_VIRTUAL_ADDRESS GetVirtualAddress(int cubeIndex, int frameBufferIndex) const;
+	const std::vector<ID3D12Resource*> GetUploadHeapResources() const;
+	const DirectX::XMFLOAT4X4 GetProjectionMatrix() const;
+	const DirectX::XMFLOAT4X4 GetViewMatrix() const;
+	const std::vector<Cube> GetCubes() const;
+
 
 private:
 	std::vector<ID3D12Resource*> uploadHeapResources;
@@ -27,4 +32,7 @@ private:
 
 	DirectX::XMFLOAT4X4 CreateProjectionMatrix(Camera cam);
 	DirectX::XMFLOAT4X4 CreateViewMatrix(Camera cam);
+	DirectX::XMFLOAT4X4 cameraViewMat;
+	DirectX::XMFLOAT4X4 cameraProjMat;
+
 };
