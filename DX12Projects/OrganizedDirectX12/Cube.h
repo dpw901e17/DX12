@@ -19,14 +19,11 @@ public:
 
 
 private:
-	//Matrix data
 	DirectX::XMFLOAT4X4 cameraProjMat;
 	DirectX::XMFLOAT4X4 cameraViewMat;
 	DirectX::XMFLOAT4X4 cubeWorldMat;
 	DirectX::XMFLOAT4X4 cubeRotMat;
 	DirectX::XMFLOAT4 cubePosition;
-
-	//Addresses
 	std::vector<UINT8*> mappedGpuAddresses;
 	std::vector<D3D12_GPU_VIRTUAL_ADDRESS> virtualGpuAdresses;
 

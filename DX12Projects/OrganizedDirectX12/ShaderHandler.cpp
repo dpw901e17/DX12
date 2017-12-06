@@ -28,7 +28,6 @@ D3D12_SHADER_BYTECODE ShaderHandler::CompileShaderToBytecode(LPCWSTR fileName, L
 	if (FAILED(hr))
 	{
 		OutputDebugStringA((char*)errorBuff->GetBufferPointer());
-		// Throw exception here maybe?
 	}
 
 	D3D12_SHADER_BYTECODE shaderBytecode = {};

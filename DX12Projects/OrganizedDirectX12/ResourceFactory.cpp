@@ -4,13 +4,16 @@
 
 ID3D12Resource* ResourceFactory::CreateUploadHeap(const Device & device, const int& sizeInBytes, LPCWSTR name)
 {
-	// Create upload heap
 	ID3D12Resource* uploadHeap;
 	device.GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // upload heap
-		D3D12_HEAP_FLAG_NONE, // no flags
-		&CD3DX12_RESOURCE_DESC::Buffer(sizeInBytes), // resource description for a buffer
-		D3D12_RESOURCE_STATE_GENERIC_READ, // GPU will read from this buffer and copy its contents to the default heap
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), 
+
+		D3D12_HEAP_FLAG_NONE, 
+
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeInBytes), 
+
+		D3D12_RESOURCE_STATE_GENERIC_READ, 
+
 		nullptr,
 		IID_PPV_ARGS(&uploadHeap));
 	uploadHeap->SetName(name);
@@ -20,13 +23,16 @@ ID3D12Resource* ResourceFactory::CreateUploadHeap(const Device & device, const i
 
 ID3D12Resource* ResourceFactory::CreateDefaultHeap(const Device & device, const int& sizeInBytes, LPCWSTR name)
 {
-	// Create default heap
 	ID3D12Resource* defaultHeap;
 	device.GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // upload heap
-		D3D12_HEAP_FLAG_NONE, // no flags
-		&CD3DX12_RESOURCE_DESC::Buffer(sizeInBytes), // resource description for a buffer
-		D3D12_RESOURCE_STATE_COPY_DEST, // Data from upload heap will be copied to here
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), 
+
+		D3D12_HEAP_FLAG_NONE, 
+
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeInBytes), 
+
+		D3D12_RESOURCE_STATE_COPY_DEST, 
+
 		nullptr,
 		IID_PPV_ARGS(&defaultHeap));
 	defaultHeap->SetName(name);
@@ -36,13 +42,16 @@ ID3D12Resource* ResourceFactory::CreateDefaultHeap(const Device & device, const 
 
 ID3D12Resource* ResourceFactory::CreateDefaultTextureHeap(const Device & device, D3D12_RESOURCE_DESC& textureDesc, LPCWSTR name)
 {
-	// Create TextureHeapDefault heap
 	ID3D12Resource* defaultTextureHeap;
 	device.GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // upload heap
-		D3D12_HEAP_FLAG_NONE, // no flags
-		&textureDesc, // resource description for a buffer
-		D3D12_RESOURCE_STATE_COPY_DEST, // Data from upload heap will be copied to here
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), 
+
+		D3D12_HEAP_FLAG_NONE, 
+
+		&textureDesc, 
+
+		D3D12_RESOURCE_STATE_COPY_DEST, 
+
 		nullptr,
 		IID_PPV_ARGS(&defaultTextureHeap));
 	defaultTextureHeap->SetName(name);
@@ -58,8 +67,6 @@ ID3D12Resource * ResourceFactory::CreateDeafultDepthStencilHeap(const Device & d
 	depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
 	ID3D12Resource* defaultDepthStencilHeap;
-
-	// Create resource and resource heap for buffer
 	device.GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
