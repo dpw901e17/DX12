@@ -36,8 +36,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	return 0;
 }
 
-
-
 void mainloop()
 {
 	//Mainloop keeps an eye out if we are recieving
@@ -482,7 +480,6 @@ void InitD3D(Window window) {
 	globalSwapchain = swapChainHandler;
 	globalCommandListHandler = new CommandListHandler(*device, frameBufferCount);
 	globalCommandListHandler2 = new CommandListHandler(*device, frameBufferCount);
-
 }
 
 void Update()
@@ -493,125 +490,39 @@ void Update()
 
 void UpdatePipeline()
 {
-	//swapchain, pipeline, rendertargets, rtvDescriptorHeap
-	//dsDescriptorHeap, rootSignature, mainDescriptorHeap, viewPort, ScissorRect,
-	//VertexBufferView, indexBufferView, globalCubeContainer 
-
-
-	HRESULT hr;
-
 	WaitForPreviousFrame(*globalSwapchain);
-	
+	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	globalCommandListHandler->RecordOpen(renderTargets);
+	globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
+	globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, 1), numCubeIndices);
+	globalCommandListHandler->Close();
 
-	/*
-	hr = commandAllocator[frameIndex]->Reset();
-	if (FAILED(hr))
-	{
-		Running = false;
-	}
-
-	// Reset of commands at the GPU and setting of the PSO
-	hr = commandList->Reset(commandAllocator[frameIndex], globalPipeline->GetPipelineStateObject());
-	if (FAILED(hr))
-	{
-		Running = false;
-	}
-
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), frameIndex, rtvDescriptorSize);
-
-	// get handle to depth/stencil buffer
-	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
-	// Sets destination of output merger.
-	// Also sets the depth/stencil buffer for OM use. 
-	commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-	// Clears screen
-	const float clearColor[] = { 1.0f, 0.5f, 0.0f, 1.0f };
-	commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-
-	// clear the depth/stencil buffer
-	commandList->ClearDepthStencilView(dsDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-	// set root signature
-	commandList->SetGraphicsRootSignature(rootSignature);
-
-	//set descriptor heap
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mainDescriptorHeap };
-	commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	//set descriptor table index 1 of the root signature. (corresponding to parameter order defined in the signature)
-	commandList->SetGraphicsRootDescriptorTable(1, mainDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
-	// draw triangle
-	commandList->RSSetViewports(1, &viewport);
-	commandList->RSSetScissorRects(1, &scissorRect);
-	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
-	commandList->IASetIndexBuffer(&indexBufferView);
-
-	// Connects the rootsignature parameter at index 0 with the constant buffer containing the wvp matrix
-	// Actual draw calls
-	for (auto i = 0; i < basicBoxScene->renderObjects().size(); ++i) {
-
-		if (i % 2 == 0) {
-			commandList->SetPipelineState(globalPipeline->GetPipelineStateObject());
-		}
-		else {
-			commandList->SetPipelineState(globalPipeline2->GetPipelineStateObject());
-		}
-
-		commandList->SetGraphicsRootConstantBufferView(0, globalCubeContainer->GetVirtualAddress(i, frameIndex));
-		commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
-	}
-
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[frameIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-
-	hr = commandList->Close();
-	if (FAILED(hr))
-	{
-		Running = false;
-	}
-	// Right now we are using two matrixes in GPU memory at once
-	// Could have just one, but would require the use of UpdateSubResource calls between render commands as to update the matrix contents.
-	*/
+	globalCommandListHandler2->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
+	globalCommandListHandler2->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, 1, 3), numCubeIndices);
+	globalCommandListHandler2->RecordClosing(renderTargets);
+	globalCommandListHandler2->Close();
 }
 
 void Render(SwapChainHandler swapChainHandler)
 {
 	HRESULT hr;
+	UpdatePipeline();
 
-	//UpdatePipeline();
-
-	WaitForPreviousFrame(*globalSwapchain);
-	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalCommandListHandler->RecordSetup(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView, true);
-	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, 1) , numCubeIndices);
-	globalCommandListHandler->Close();
-
-	globalCommandListHandler2->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalCommandListHandler2->RecordSetup(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView, false);
-	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, 1, 3), numCubeIndices);
-	globalCommandListHandler2->RecordClosing(renderTargets);
-	globalCommandListHandler2->Close();
-
-	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList()};
-
+	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList(), globalCommandListHandler2->GetCommandList()};
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
 
 	if (FAILED(hr))
 	{
-		Running = false;
+		std::runtime_error("Failed in creating signal on commandQueue");
 	}
 
 	hr = swapChainHandler.GetSwapChain()->Present(0, 0);
 	if (FAILED(hr))
 	{
-		Running = false;
+		std::runtime_error("Failed to present swapchain.");
 	}
 }
 

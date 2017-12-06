@@ -23,13 +23,9 @@ CommandListHandler::~CommandListHandler()
 	}
 }
 
-void CommandListHandler::RecordSetup(ID3D12Resource * renderTargets[], ID3D12DescriptorHeap & rtvDescriptorHeap, int rtvDescriptorSize, ID3D12DescriptorHeap & dsDescriptorHeap, ID3D12RootSignature & rootSignature, ID3D12DescriptorHeap & mainDescriptorHeap, D3D12_VIEWPORT & viewport, D3D12_RECT & scissorRect, D3D12_VERTEX_BUFFER_VIEW & vertexBufferView, D3D12_INDEX_BUFFER_VIEW & indexBufferView, bool clearScreen)
+void CommandListHandler::SetState(ID3D12Resource * renderTargets[], ID3D12DescriptorHeap & rtvDescriptorHeap, int rtvDescriptorSize, ID3D12DescriptorHeap & dsDescriptorHeap, ID3D12RootSignature & rootSignature, ID3D12DescriptorHeap & mainDescriptorHeap, D3D12_VIEWPORT & viewport, D3D12_RECT & scissorRect, D3D12_VERTEX_BUFFER_VIEW & vertexBufferView, D3D12_INDEX_BUFFER_VIEW & indexBufferView)
 {
 	HRESULT hr;
-
-	if (clearScreen) {
-		m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[m_frameBufferIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-	}
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, rtvDescriptorSize);
 
@@ -40,16 +36,6 @@ void CommandListHandler::RecordSetup(ID3D12Resource * renderTargets[], ID3D12Des
 	// Also sets the depth/stencil buffer for OM use. 
 	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
-	
-	if (clearScreen) {
-		// Clears screen
-		const float clearColor[] = { 1.0f, 0.5f, 0.0f, 1.0f };
-		m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-
-		// clear the depth/stencil buffer
-		m_commandList->ClearDepthStencilView(dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-	}
-	
 	// set root signature
 	m_commandList->SetGraphicsRootSignature(&rootSignature);
 
@@ -66,6 +52,7 @@ void CommandListHandler::RecordSetup(ID3D12Resource * renderTargets[], ID3D12Des
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 	m_commandList->IASetIndexBuffer(&indexBufferView);
+
 }
 
 
@@ -79,9 +66,27 @@ void CommandListHandler::RecordDrawCalls(const CubeContainer& cubeContainer, int
 	}
 }
 
+void CommandListHandler::RecordOpen(ID3D12Resource * renderTargets[])
+{
+	m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[m_frameBufferIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+}
+
 void CommandListHandler::RecordClosing(ID3D12Resource * renderTargets[])
 {
 	m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[m_frameBufferIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+}
+
+void CommandListHandler::RecordClearScreenBuffers(ID3D12DescriptorHeap & rtvDescriptorHeap, int rtvDescriptorSize, ID3D12DescriptorHeap & dsDescriptorHeap)
+{
+	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, rtvDescriptorSize);
+
+	// Clears screen
+	const float clearColor[] = { 1.0f, 0.5f, 0.0f, 1.0f };
+	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+	// clear the depth/stencil buffer
+	m_commandList->ClearDepthStencilView(dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
 }
 
 // Resets the commandlist and the commandallocator for this frame
