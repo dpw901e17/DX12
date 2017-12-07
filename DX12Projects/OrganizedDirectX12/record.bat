@@ -11,7 +11,7 @@ REM Pipeloins statistikler
 REM OpenHardwareMonitor
 start C:\PROGRA~2\OpenHardwareMonitor\OpenHardwareMonitor.exe 
 timeout 10
-%exename%.exe -csv -sec %seconds% -OHM -pi 0
+%exename%.exe -csv -sec %seconds% -OHM -pi 1000
 taskkill /IM OpenHardwareMonitor.exe
 
 REM Perfmonitor

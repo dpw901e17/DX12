@@ -6,11 +6,15 @@ mkdir ..\x64\Release
 copy /Y record.bat ..\x64\Debug\
 copy /Y record.bat ..\x64\Release\
 
-copy /Y VertexShader.hlsl ..\x64\Debug\
-copy /Y VertexShader.hlsl ..\x64\Release\
+copy /Y *.hlsl ..\x64\Debug\
+copy /Y *.hlsl ..\x64\Release\
 
-copy /Y PixelShader.hlsl ..\x64\Debug\
-copy /Y PixelShader.hlsl ..\x64\Release\
+copy /Y *.jpg ..\x64\Debug\
+copy /Y *.jpg ..\x64\Release\
+copy /Y *.png ..\x64\Debug\
+copy /Y *.png ..\x64\Release\
+copy /Y *.bmp ..\x64\Debug\
+copy /Y *.bmp ..\x64\Release\
 
 copy /Y CollectWinPerfmonDataCfg.cfg ..\x64\Debug\
 copy /Y CollectWinPerfmonDataCfg.cfg ..\x64\Release\

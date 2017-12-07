@@ -66,7 +66,7 @@ void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 		wmiAccesor.Connect("OpenHardwareMonitor");
 	}
 
-	while (Running && nanoSec / 1000000000 < testConfig.seconds)
+	while (Running && (nanoSec / 1000000000 < testConfig.seconds) || (testConfig.seconds == 0))
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
