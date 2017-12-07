@@ -19,8 +19,13 @@
 #include "WindowTarget.h"
 #include "stb_image.h"
 #include "../../scene-window-system/Scene.h"
+#include "../../scene-window-system/TestConfiguration.h"
+#include "../../scene-window-system/WmiAccess.h"
 #include <vector>
 #include <array>
+#include <chrono>
+#include <sstream>
+#include <fstream>
 
 #include "SafeRelease.h"
 #include "Device.h"
@@ -99,8 +104,8 @@ uint64_t numOfFrames = 0;
 
 void InitD3D(Window window);
 void Update();
-void UpdatePipeline();
-void Render(SwapChainHandler swapChainHandler);
+void UpdatePipeline(TestConfiguration testConfig);
+void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig);
 void Cleanup(SwapChainHandler swapChainHandler);
 void WaitForPreviousFrame(SwapChainHandler swapChainHandler);
 
@@ -129,7 +134,7 @@ bool Running = true;
 //*********
 
 // Main loop of the application
-void mainloop();
+void mainloop(WMIDataCollection, TestConfiguration);
 
 struct Vertex {
 	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
@@ -212,3 +217,67 @@ PipelineStateHandler* globalPipeline;
 PipelineStateHandler* globalPipeline2;
 CommandListHandler* globalCommandListHandler;
 CommandListHandler* globalCommandListHandler2;
+
+//pipeline statistics:
+ID3D12QueryHeap* globalQueryHeap;
+ID3D12Resource* globalQueryResult;
+D3D12_QUERY_DATA_PIPELINE_STATISTICS* globalQueryBuffer;
+
+template<typename T>
+auto force_string(T arg) {
+	std::stringstream ss;
+	ss << arg;
+	return ss.str();
+}
+
+void SaveToFile(const std::string& file, const std::string& data) 
+{
+	std::ofstream fs;
+	fs.open(file, std::ofstream::app);
+	fs << data;
+	fs.close();
+}
+
+void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item);
+
+void SetTestConfiguration(LPSTR exeArgs, TestConfiguration& testConfig) {
+	//get exe arguments
+	std::vector<std::string> args;
+
+	std::string str(exeArgs);
+	std::string arg = "";
+	for (char c : str) {
+		if (c == ' ') {
+			args.push_back(arg);
+			arg = "";
+		}
+		else {
+			arg += c;
+		}
+	}
+
+	args.push_back(arg);
+
+	std::string a = "";
+	for (auto i = 0; i < args.size(); ++i) {
+		a = args[i];
+		if (a == "-csv") {
+			testConfig.exportCsv = true;
+		}
+		else if (a == "-sec") {
+			testConfig.seconds = stoi(args[i + 1]);
+		}
+		else if (a == "-OHM") {
+			testConfig.openHardwareMonitorData = true;
+		}
+		else if (a == "-pipelineStatistics") {
+			testConfig.pipelineStatistics = true;
+		}
+		else if (a == "-pi") {
+			testConfig.probeInterval = stoi(args[i + 1]);
+		}
+		else if (a == "-reuseComBuf") {
+			testConfig.reuseCommandBuffers = true;
+		}
+	}
+}

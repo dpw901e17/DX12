@@ -4,6 +4,9 @@
 #include "../../scene-window-system/Camera.h"
 #include "../../scene-window-system/RenderObject.h"
 #include "../../scene-window-system/Scene.h"
+#include "../../scene-window-system/WmiAccess.h"
+#include "../../scene-window-system/TestConfiguration.h"
+
 
 using namespace DirectX;
 
@@ -25,9 +28,14 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	InitD3D(*win);
 
 
-	PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
+	//PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
-	mainloop();
+	WMIDataCollection database;
+
+	TestConfiguration testConfig;
+	SetTestConfiguration(lpCmdLine, testConfig);
+
+	mainloop(database, testConfig);
 
 	//Cleanup gpu.
 	WaitForPreviousFrame(*globalSwapchain);
@@ -36,7 +44,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	return 0;
 }
 
-void mainloop()
+void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 {
 	//Mainloop keeps an eye out if we are recieving
 	//any message from the callback function. If we are
@@ -45,7 +53,20 @@ void mainloop()
 	MSG msg;
 	ZeroMemory(&msg, sizeof(MSG));
 
-	while (Running)
+	using Clock = std::chrono::high_resolution_clock;
+
+	size_t nanoSec = 0;
+	size_t probeCount = 0;
+	auto lastUpdate = Clock::now();
+
+	WMIAccessor wmiAccesor;
+	_bstr_t probeProperties[] = { "Identifier", "Value", "SensorType" };
+
+	if (testConfig.exportCsv && testConfig.openHardwareMonitorData) {
+		wmiAccesor.Connect("OpenHardwareMonitor");
+	}
+
+	while (Running && nanoSec / 1000000000 < testConfig.seconds)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
@@ -55,14 +76,79 @@ void mainloop()
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		else
+
+		nanoSec += std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
+		lastUpdate = Clock::now();
+		WMIDataItem item;
+
+		if (testConfig.exportCsv && 
+			testConfig.openHardwareMonitorData && 
+			nanoSec / 1000000 > probeCount * testConfig.probeInterval) 
 		{
-			//run gamecode
-			++numOfFrames;
-			Update();
-			Render(*globalSwapchain);
+			item = wmiAccesor.QueryItem("sensor", probeProperties, 3, Arrange_OHM_Data);
+			item.Add("Timestamp", std::to_string(nanoSec));
+			database.Add(item);
+			++probeCount;
 		}
+
+		//run gamecode
+		++numOfFrames;
+		Update();
+		Render(*globalSwapchain, testConfig);
+		
 	}
+
+	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
+		WMIDataItem item;
+
+		item.Add("CInvocations", force_string(globalQueryBuffer->CInvocations));
+		item.Add("CPrimitives", force_string(globalQueryBuffer->CPrimitives));
+		item.Add("CSInvocations", force_string(globalQueryBuffer->CSInvocations));
+		item.Add("DSInvocations", force_string(globalQueryBuffer->DSInvocations));
+		item.Add("GSInvocations", force_string(globalQueryBuffer->GSInvocations));
+		item.Add("GSPrimitives", force_string(globalQueryBuffer->GSPrimitives));
+		item.Add("HSnvocations", force_string(globalQueryBuffer->HSInvocations));
+		item.Add("IAPrimitives", force_string(globalQueryBuffer->IAPrimitives));
+		item.Add("IAVertices", force_string(globalQueryBuffer->IAVertices));
+		item.Add("PSInvocations", force_string(globalQueryBuffer->PSInvocations));
+		item.Add("VSInvocations", force_string(globalQueryBuffer->VSInvocations));
+
+		database.Add(item);
+	}
+
+	auto now = time(NULL);
+	tm* localNow = new tm();
+	localtime_s(localNow, &now);
+
+	auto yearStr = std::to_string((1900 + localNow->tm_year));
+	auto monthStr = localNow->tm_mon < 9 ? "0" + std::to_string(localNow->tm_mon + 1) : std::to_string(localNow->tm_mon + 1);
+	auto dayStr = localNow->tm_mday < 10 ? "0" + std::to_string(localNow->tm_mday) : std::to_string(localNow->tm_mday);
+	auto hourStr = localNow->tm_hour < 10 ? "0" + std::to_string(localNow->tm_hour) : std::to_string(localNow->tm_hour);
+	auto minStr = localNow->tm_min < 10 ? "0" + std::to_string(localNow->tm_min) : std::to_string(localNow->tm_min);
+	auto secStr = localNow->tm_sec < 10 ? "0" + std::to_string(localNow->tm_sec) : std::to_string(localNow->tm_sec);
+
+	auto fname = yearStr + monthStr + dayStr + hourStr + minStr + secStr;
+
+	if (testConfig.exportCsv && testConfig.openHardwareMonitorData) {
+
+		std::vector<std::string> order = { "Timestamp", "ComponentType", "ComponentID", "SensorType", "SensorID", "Value" };
+		auto csvStr = database.MakeString(order, ";");
+		SaveToFile("data_" + fname + ".csv", csvStr);
+	}
+
+	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
+		std::vector<std::string> pipeline_stat_order = {
+			"CInvocations", "CPrimitives", "CSInvocations",
+			"DSInvocations", "GSInvocations", "GSPrimitives",
+			"HSnvocations",	"IAPrimitives", "IAVertices",
+			"PSInvocations", "VSInvocations"
+		};
+
+		auto csvStr = database.MakeString(pipeline_stat_order, ";");
+		SaveToFile("stat_" + fname + ".csv", csvStr);
+	}
+
+	delete localNow;
 }
 
 IDXGIFactory4* CreateDXGIFactory() {
@@ -413,6 +499,19 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 void InitD3D(Window window) {
 	HRESULT hr;
 	
+	ID3D12Debug* debugController;
+	ID3D12Debug1* debug1Controller;
+	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+	if (FAILED(hr)) {
+		throw std::runtime_error("Failed to initialize debug controller!");
+	
+	}
+	else if (SUCCEEDED(hr)) {
+		debugController->EnableDebugLayer();
+		debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
+		debug1Controller->SetEnableGPUBasedValidation(true);
+	}
+
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
 	Device* device = new Device(dxgiFactory);
 	CreateCommandQueue(*device);
@@ -480,6 +579,25 @@ void InitD3D(Window window) {
 	globalSwapchain = swapChainHandler;
 	globalCommandListHandler = new CommandListHandler(*device, frameBufferCount);
 	globalCommandListHandler2 = new CommandListHandler(*device, frameBufferCount);
+
+	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+	queryHeapDesc.Count = 1;
+	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
+
+	if (FAILED(device->GetDevice()->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&globalQueryHeap)))) {
+		throw std::runtime_error("Could not create query heap (for pipeline statistics)!");
+	}
+
+	if (FAILED(device->GetDevice()->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), 
+		D3D12_HEAP_FLAG_NONE, 
+		&CD3DX12_RESOURCE_DESC::Buffer(11 * 8), 
+		D3D12_RESOURCE_STATE_COPY_DEST, 
+		nullptr, 
+		IID_PPV_ARGS(&globalQueryResult)))) 
+	{
+		throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
+	}
 }
 
 void Update()
@@ -488,14 +606,27 @@ void Update()
 	globalCubeContainer->UpdateFrame(frameIndex);
 }
 
-void UpdatePipeline()
+void UpdatePipeline(TestConfiguration testConfig)
 {
 	WaitForPreviousFrame(*globalSwapchain);
+
+	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
+		D3D12_RANGE emptyRange = { 0,0 };
+		D3D12_RANGE range = {};
+		range.Begin = 0;
+		range.End = 11 * 8;
+		globalQueryResult->Map(0, &range, reinterpret_cast<void**>(&globalQueryBuffer));
+		globalQueryResult->Unmap(0, &emptyRange);
+	}
+
 	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
 	globalCommandListHandler->RecordOpen(renderTargets);
 	globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
 	globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+	globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
 	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, 1), numCubeIndices);
+	globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+	globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
 	globalCommandListHandler->Close();
 
 	globalCommandListHandler2->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
@@ -503,12 +634,16 @@ void UpdatePipeline()
 	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, 1, 3), numCubeIndices);
 	globalCommandListHandler2->RecordClosing(renderTargets);
 	globalCommandListHandler2->Close();
+
+
+	//get pipeline statistics data:
+
 }
 
-void Render(SwapChainHandler swapChainHandler)
+void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 {
 	HRESULT hr;
-	UpdatePipeline();
+	UpdatePipeline(testConfig);
 
 	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList(), globalCommandListHandler2->GetCommandList()};
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
@@ -542,7 +677,10 @@ void Cleanup(SwapChainHandler swapChainHandler)
 	delete globalSwapchain;
 	SAFE_RELEASE(commandQueue);
 	SAFE_RELEASE(rtvDescriptorHeap);
-	SAFE_RELEASE(commandList);
+	SAFE_RELEASE(commandList);	
+
+	SAFE_RELEASE(globalQueryResult);
+	SAFE_RELEASE(globalQueryHeap);
 
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
@@ -625,4 +763,46 @@ int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescrip
 	stbi_image_free(pixels);
 
 	return imageSize;
+}
+
+//Determines how the cells (items) in the database look (name = attribute/collumn in db, value = entry in cell)
+void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item)
+{
+	/*
+	dataArr[0] is Identifyer (when called in this main).
+	dataArr[1] is Value
+	dataArr[2] is SensorType
+	Since Identifyer has the general structure "/[component]/[compId]/[sensorType]/[sensorId]",
+	then this can be split into db collumns (parts) like:  [component] | [compId] | [sensorId]
+	*/
+
+	//split Identifyer up as described above:
+	std::vector<std::string> parts;
+	std::string part = "";
+	for (char c : dataArr[0]) {
+		if (c == '/') {
+			if (part != "") {
+				parts.push_back(part);
+				part = "";
+			}
+		}
+		else {
+			part += c;
+		}
+	}
+
+	//add the last identifyed part:
+	parts.push_back(part);
+
+	item->Add("ComponentType", parts[0]);
+	//some identifiers (/ram/data/[id]) only have 3 parts to them (missing the ComponentID)
+	if (parts.size() % 4 == 0) {
+		item->Add("ComponentID", parts[1]);
+	}
+	else {
+		item->Add("ComponentID", "N/A");
+	}
+	item->Add("SensorID", parts[parts.size() - 1]);
+	item->Add("Value", dataArr[1]);
+	item->Add("SensorType", dataArr[2]);
 }

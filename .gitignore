@@ -290,3 +290,4 @@ __pycache__/
 # CppDepend
 *.cdproj
 /DX12Projects/CppDependOut/
+*.csv
