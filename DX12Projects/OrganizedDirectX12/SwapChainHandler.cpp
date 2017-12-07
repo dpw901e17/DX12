@@ -16,7 +16,7 @@ SwapChainHandler::SwapChainHandler(IDXGIFactory4* dxgiFactory, DXGI_SAMPLE_DESC 
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // buffer data discarded after present
 	swapChainDesc.OutputWindow = window.GetHandle(); // window handle
 	swapChainDesc.SampleDesc = sampleDesc; // multi-sampling descriptor
-	swapChainDesc.Windowed = !window.GetFullscreen(); // Apperantly more complicated than it looks
+	swapChainDesc.Windowed = true; // Apperantly more complicated than it looks
 
 	IDXGISwapChain* tempSwapChain;
 

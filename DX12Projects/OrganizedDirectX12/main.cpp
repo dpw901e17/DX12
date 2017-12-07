@@ -12,7 +12,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	LPSTR lpCmdLine,
 	int nShowCmd)
 {
-	Window* win = new Window(hInstance, WindowTitle, WindowName, nShowCmd, Width, Height, FullScreen);
+	Window* win = new Window(hInstance, WindowName, WindowTitle, Width, Height);
 	hwnd = win->GetHandle();
 
 	auto tempScene = Scene(Camera::Default(), { RenderObject(0, 0, 0),
@@ -444,7 +444,7 @@ void InitD3D(Window window) {
 	indexBufferView = CreateIndexBuffer(*device, commandList);
 	CreateStencilBuffer(*device);
 
-	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene);
+	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene, window.aspectRatio());
 
 	CreateTexture(*device, commandList);
 

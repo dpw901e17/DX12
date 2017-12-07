@@ -1,6 +1,6 @@
 #include "CubeContainer.h"
 
-CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene)
+CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio)
 {
 	HRESULT hr;
 	auto numberOfCubes = scene.renderObjects().size();
@@ -13,7 +13,7 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	}
 
 	cameraViewMat = CreateViewMatrix(scene.camera());
-	cameraProjMat = CreateProjectionMatrix(scene.camera());
+	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
 
 	// Initialize all cubes with an index
 	for (auto i = 0; i < numberOfCubes; ++i) {
@@ -69,10 +69,10 @@ const std::vector<Cube> CubeContainer::GetCubes() const
 	return cubes;
 }
 
-DirectX::XMFLOAT4X4 CubeContainer::CreateProjectionMatrix(Camera cam)
+DirectX::XMFLOAT4X4 CubeContainer::CreateProjectionMatrix(Camera cam, float aspectRatio)
 {
 	DirectX::XMFLOAT4X4 cameraProjMat;
-	DirectX::XMMATRIX tmpMat = DirectX::XMMatrixPerspectiveFovLH(cam.FieldOfView(), cam.AspectRatio(), cam.Near(), cam.Far());
+	DirectX::XMMATRIX tmpMat = DirectX::XMMatrixPerspectiveFovLH(cam.FieldOfView(), aspectRatio, cam.Near(), cam.Far());
 	DirectX::XMStoreFloat4x4(&cameraProjMat, tmpMat);
 	return cameraProjMat;
 }

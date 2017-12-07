@@ -13,7 +13,7 @@
 
 class CubeContainer {
 public:
-	CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene);
+	CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio);
 	CubeContainer(const CubeContainer& cubeContainer, const size_t startIndex, const size_t count);
 	~CubeContainer();
 
@@ -30,7 +30,7 @@ private:
 	std::vector<Cube> cubes;
 	int constantBufferPerObjectAllignedSize = sizeof(DirectX::XMFLOAT4X4) + 255 & ~255;
 
-	DirectX::XMFLOAT4X4 CreateProjectionMatrix(Camera cam);
+	DirectX::XMFLOAT4X4 CreateProjectionMatrix(Camera cam, float aspectRatio);
 	DirectX::XMFLOAT4X4 CreateViewMatrix(Camera cam);
 	DirectX::XMFLOAT4X4 cameraViewMat;
 	DirectX::XMFLOAT4X4 cameraProjMat;
