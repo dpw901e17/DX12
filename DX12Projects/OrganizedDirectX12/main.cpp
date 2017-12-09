@@ -30,12 +30,13 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	//PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
-	WMIDataCollection database;
+	DataCollection<WMIDataItem> wmiDataCollection;
+	DataCollection<PipelineStatisticsDataItem> pipelineStatisticsDataCollection;
 
 	TestConfiguration testConfig;
 	SetTestConfiguration(lpCmdLine, testConfig);
 
-	mainloop(database, testConfig);
+	mainloop(wmiDataCollection, pipelineStatisticsDataCollection, testConfig);
 
 	//Cleanup gpu.
 	WaitForPreviousFrame(*globalSwapchain);
@@ -44,7 +45,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	return 0;
 }
 
-void mainloop(WMIDataCollection database, TestConfiguration testConfig)
+void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig)
 {
 	//Mainloop keeps an eye out if we are recieving
 	//any message from the callback function. If we are
@@ -62,7 +63,7 @@ void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 	WMIAccessor wmiAccesor;
 	_bstr_t probeProperties[] = { "Identifier", "Value", "SensorType" };
 
-	if (testConfig.exportCsv && testConfig.openHardwareMonitorData) {
+	if (testConfig.openHardwareMonitorData) {
 		wmiAccesor.Connect("OpenHardwareMonitor");
 	}
 
@@ -79,15 +80,20 @@ void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 
 		nanoSec += std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
 		lastUpdate = Clock::now();
-		WMIDataItem item;
 
-		if (testConfig.exportCsv && 
-			testConfig.openHardwareMonitorData && 
+		if (testConfig.openHardwareMonitorData && 
 			nanoSec / 1000000 > probeCount * testConfig.probeInterval) 
 		{
-			item = wmiAccesor.QueryItem("sensor", probeProperties, 3, Arrange_OHM_Data);
-			item.Add("Timestamp", std::to_string(nanoSec));
-			database.Add(item);
+			//QueryItem queries one item from WMI, which is separated into multiple items (put in a vector here)
+			auto items = wmiAccesor.QueryItem("sensor", probeProperties, 3);
+
+			//each item needs a timestamp and an id ( = probeCount)
+			for (auto& item : items) {
+				item.Timestamp = std::to_string(nanoSec);
+				item.Id = std::to_string(probeCount);
+				wmiDataCollection.Add(item);
+			}
+
 			++probeCount;
 		}
 
@@ -95,25 +101,24 @@ void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 		++numOfFrames;
 		Update();
 		Render(*globalSwapchain, testConfig);
-		
 	}
 
-	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
-		WMIDataItem item;
+	if (testConfig.pipelineStatistics) {
+		PipelineStatisticsDataItem item;
 
-		item.Add("CInvocations", force_string(globalQueryBuffer->CInvocations));
-		item.Add("CPrimitives", force_string(globalQueryBuffer->CPrimitives));
-		item.Add("CSInvocations", force_string(globalQueryBuffer->CSInvocations));
-		item.Add("DSInvocations", force_string(globalQueryBuffer->DSInvocations));
-		item.Add("GSInvocations", force_string(globalQueryBuffer->GSInvocations));
-		item.Add("GSPrimitives", force_string(globalQueryBuffer->GSPrimitives));
-		item.Add("HSnvocations", force_string(globalQueryBuffer->HSInvocations));
-		item.Add("IAPrimitives", force_string(globalQueryBuffer->IAPrimitives));
-		item.Add("IAVertices", force_string(globalQueryBuffer->IAVertices));
-		item.Add("PSInvocations", force_string(globalQueryBuffer->PSInvocations));
-		item.Add("VSInvocations", force_string(globalQueryBuffer->VSInvocations));
+		item.CInvocations	= force_string(globalQueryBuffer->CInvocations);
+		item.CPrimitives	= force_string(globalQueryBuffer->CPrimitives);
+		item.CSInvocations	= force_string(globalQueryBuffer->CSInvocations);
+		item.DSInvocations	= force_string(globalQueryBuffer->DSInvocations);
+		item.GSInvocations	= force_string(globalQueryBuffer->GSInvocations);
+		item.GSPrimitives	= force_string(globalQueryBuffer->GSPrimitives);
+		item.HSInvocations	= force_string(globalQueryBuffer->HSInvocations);
+		item.IAPrimitives	= force_string(globalQueryBuffer->IAPrimitives);
+		item.IAVertices		= force_string(globalQueryBuffer->IAVertices);
+		item.PSInvocations	= force_string(globalQueryBuffer->PSInvocations);
+		item.VSInvocations	= force_string(globalQueryBuffer->VSInvocations);
 
-		database.Add(item);
+		pipelineStatisticsDataCollection.Add(item);
 	}
 
 	auto now = time(NULL);
@@ -131,20 +136,12 @@ void mainloop(WMIDataCollection database, TestConfiguration testConfig)
 
 	if (testConfig.exportCsv && testConfig.openHardwareMonitorData) {
 
-		std::vector<std::string> order = { "Timestamp", "ComponentType", "ComponentID", "SensorType", "SensorID", "Value" };
-		auto csvStr = database.MakeString(order, ";");
+		auto csvStr = wmiDataCollection.MakeString(";");
 		SaveToFile("data_" + fname + ".csv", csvStr);
 	}
 
 	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
-		std::vector<std::string> pipeline_stat_order = {
-			"CInvocations", "CPrimitives", "CSInvocations",
-			"DSInvocations", "GSInvocations", "GSPrimitives",
-			"HSnvocations",	"IAPrimitives", "IAVertices",
-			"PSInvocations", "VSInvocations"
-		};
-
-		auto csvStr = database.MakeString(pipeline_stat_order, ";");
+		auto csvStr = pipelineStatisticsDataCollection.MakeString(";");
 		SaveToFile("stat_" + fname + ".csv", csvStr);
 	}
 
@@ -610,7 +607,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 {
 	WaitForPreviousFrame(*globalSwapchain);
 
-	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
+	if (testConfig.pipelineStatistics) {
 		D3D12_RANGE emptyRange = { 0,0 };
 		D3D12_RANGE range = {};
 		range.Begin = 0;
@@ -763,46 +760,4 @@ int LoadImageDataFromFile(BYTE** imageData, D3D12_RESOURCE_DESC& resourceDescrip
 	stbi_image_free(pixels);
 
 	return imageSize;
-}
-
-//Determines how the cells (items) in the database look (name = attribute/collumn in db, value = entry in cell)
-void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item)
-{
-	/*
-	dataArr[0] is Identifyer (when called in this main).
-	dataArr[1] is Value
-	dataArr[2] is SensorType
-	Since Identifyer has the general structure "/[component]/[compId]/[sensorType]/[sensorId]",
-	then this can be split into db collumns (parts) like:  [component] | [compId] | [sensorId]
-	*/
-
-	//split Identifyer up as described above:
-	std::vector<std::string> parts;
-	std::string part = "";
-	for (char c : dataArr[0]) {
-		if (c == '/') {
-			if (part != "") {
-				parts.push_back(part);
-				part = "";
-			}
-		}
-		else {
-			part += c;
-		}
-	}
-
-	//add the last identifyed part:
-	parts.push_back(part);
-
-	item->Add("ComponentType", parts[0]);
-	//some identifiers (/ram/data/[id]) only have 3 parts to them (missing the ComponentID)
-	if (parts.size() % 4 == 0) {
-		item->Add("ComponentID", parts[1]);
-	}
-	else {
-		item->Add("ComponentID", "N/A");
-	}
-	item->Add("SensorID", parts[parts.size() - 1]);
-	item->Add("Value", dataArr[1]);
-	item->Add("SensorType", dataArr[2]);
 }
