@@ -2,7 +2,7 @@
 
 Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 	const DirectX::XMFLOAT4X4& cameraProj, const DirectX::XMFLOAT4X4& cameraView, 
-	const RenderObject& renderObject)
+	const RenderObject& renderObject, const float scale) : m_Scale(scale)
 {
 	HRESULT hr;
 
@@ -39,11 +39,14 @@ Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 	DirectX::XMStoreFloat4x4(&cubeRotMat, DirectX::XMMatrixIdentity());
 
 	cubePosition = DirectX::XMFLOAT4(renderObject.x(), renderObject.y(), renderObject.z(), 1.0f);
+
+	/*
 	DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&cubePosition);
 
 	auto tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
 
 	DirectX::XMStoreFloat4x4(&cubeWorldMat, tmpMat);
+	*/
 }
 
 Cube::~Cube()
@@ -67,14 +70,15 @@ void Cube::UpdateWVPMatrix(int frameBufferIndex)
 	DirectX::XMMATRIX rotZMat = DirectX::XMMatrixRotationZ(0.0003f*(index + 1) * std::pow(-1, index));
 
 	// add rotation to cube1's rot matrix
-	DirectX::XMMATRIX  rotMat = DirectX::XMLoadFloat4x4(&cubeRotMat) * rotXMat * rotYMat * rotZMat;
+	DirectX::XMMATRIX  rotMat = DirectX::XMLoadFloat4x4(&cubeRotMat) /* * rotXMat * rotYMat * rotZMat */;
 	DirectX::XMStoreFloat4x4(&cubeRotMat, rotMat);
 
 	// translation matrix for cube 
 	DirectX::XMMATRIX translationMat = DirectX::XMMatrixTranslationFromVector(XMLoadFloat4(&cubePosition));
+	DirectX::XMMATRIX scaleMatrix = DirectX::XMMatrixScaling(m_Scale, m_Scale, m_Scale);
 
 	// world matrix for cube 
-	DirectX::XMMATRIX worldMat = rotMat * translationMat;
+	DirectX::XMMATRIX worldMat =  rotMat * translationMat * scaleMatrix;
 	DirectX::XMStoreFloat4x4(&cubeWorldMat, worldMat);
 
 	// create wvp matrix

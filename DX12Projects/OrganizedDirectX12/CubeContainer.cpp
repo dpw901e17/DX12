@@ -1,4 +1,5 @@
 #include "CubeContainer.h"
+#include <math.h>
 
 CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio)
 {
@@ -16,8 +17,10 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
 
 	// Initialize all cubes with an index
+	auto dimSize = std::cbrt(scene.renderObjects().size());
+	auto scale = dimSize * dimSize;
 	for (auto i = 0; i < numberOfCubes; ++i) {
-		cubes.push_back(Cube(i, uploadHeapResources, cameraProjMat, cameraViewMat, scene.renderObjects()[i]));
+		cubes.push_back(Cube(i, uploadHeapResources, cameraProjMat, cameraViewMat, scene.renderObjects()[i], 1));
 	}
 }
 

@@ -18,12 +18,26 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	Window* win = new Window(hInstance, WindowName, WindowTitle, Width, Height);
 	hwnd = win->GetHandle();
 
+	/*
 	auto tempScene = Scene(Camera::Default(), { RenderObject(0, 0, 0),
 		RenderObject(0.5, 0.5, 0.5),
 		RenderObject(0.5, -0.5, 0.5),
 		RenderObject(-0.5, 0.5, 0.5),
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
+	*/
+	auto cubeCountPerDim = 4;
+	auto paddingFactor = 1;	//one full cube of space between actual cubes
+
+	auto base = cubeCountPerDim + cubeCountPerDim * paddingFactor / 2.0f;
+	double angleInDeg = 45 / 2;	//45 degree FOV
+	auto hyp = base / std::sin(angleInDeg * 3.141592 / 180);
+	auto camDistance = hyp * std::cos(angleInDeg * 3.141592 / 180);
+	float z = camDistance;
+
+	auto tmpScene = Scene(Camera({0.0f, 0.0f, z, 1.0f}), cubeCountPerDim, 2);
+
+	basicBoxScene = &tmpScene;
 
 	InitD3D(*win);
 
@@ -616,19 +630,21 @@ void UpdatePipeline(TestConfiguration testConfig)
 		globalQueryResult->Unmap(0, &emptyRange);
 	}
 
+	auto cubeCount = basicBoxScene->renderObjects().size();
+
 	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
 	globalCommandListHandler->RecordOpen(renderTargets);
 	globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
 	globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
 	globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, 1), numCubeIndices);
+	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, cubeCount / 2), numCubeIndices);
 	globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
 	globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
 	globalCommandListHandler->Close();
 
 	globalCommandListHandler2->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
 	globalCommandListHandler2->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, 1, 3), numCubeIndices);
+	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, cubeCount / 2, cubeCount / 2 + cubeCount % 2), numCubeIndices);
 	globalCommandListHandler2->RecordClosing(renderTargets);
 	globalCommandListHandler2->Close();
 
