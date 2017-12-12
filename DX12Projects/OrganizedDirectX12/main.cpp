@@ -26,16 +26,18 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
 	*/
-	auto cubeCountPerDim = 4;
-	auto paddingFactor = 1;	//one full cube of space between actual cubes
+	auto cubeCountPerDim = 8;
+	auto paddingFactor = 5;	//one full cube of space between actual cubes
 
-	auto base = cubeCountPerDim + cubeCountPerDim * paddingFactor / 2.0f;
-	double angleInDeg = 45 / 2;	//45 degree FOV
-	auto hyp = base / std::sin(angleInDeg * 3.141592 / 180);
-	auto camDistance = hyp * std::cos(angleInDeg * 3.141592 / 180);
-	float z = camDistance;
-
-	auto tmpScene = Scene(Camera({0.0f, 0.0f, z, 1.0f}), cubeCountPerDim, 2);
+	Camera camera = Camera::Default();
+	auto heightFOV = camera.FieldOfView() / win->aspectRatio();
+	auto base = (cubeCountPerDim + (cubeCountPerDim - 1) * paddingFactor) / 2.0f;
+	auto camDistance = base / std::tan(heightFOV / 2);
+	float z = camDistance + base + camera.Near();
+	
+	camera.SetPosition({ 0.0f, 0.0f, z, 1.0f });
+	camera.SetFar(z + base + camera.Near());
+	auto tmpScene = Scene(camera, cubeCountPerDim, paddingFactor);
 
 	basicBoxScene = &tmpScene;
 
@@ -47,10 +49,10 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	DataCollection<WMIDataItem> wmiDataCollection;
 	DataCollection<PipelineStatisticsDataItem> pipelineStatisticsDataCollection;
 
-	TestConfiguration testConfig;
+	TestConfiguration& testConfig = TestConfiguration::GetInstance();
 	SetTestConfiguration(lpCmdLine, testConfig);
 
-	mainloop(wmiDataCollection, pipelineStatisticsDataCollection, testConfig);
+	mainloop(wmiDataCollection, pipelineStatisticsDataCollection, testConfig, win);
 
 	//Cleanup gpu.
 	WaitForPreviousFrame(*globalSwapchain);
@@ -59,7 +61,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	return 0;
 }
 
-void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig)
+void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig, Window* window)
 {
 	//Mainloop keeps an eye out if we are recieving
 	//any message from the callback function. If we are
@@ -81,19 +83,41 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 		wmiAccesor.Connect("OpenHardwareMonitor");
 	}
 
+	int fps = 0;
+	size_t secondTrackerInNanoSec = 0;
 	while (Running && (nanoSec / 1000000000 < testConfig.seconds) || (testConfig.seconds == 0))
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
-			if (msg.message == WM_QUIT)
+			if (msg.message == WM_QUIT) {
 				break;
+			}
+			else if (msg.message == WM_KEYDOWN) {
+				//TranslateMessage(&msg);
+				auto c = msg.wParam;
+				//r = 82
+				if (c == 82) {
+					bool& rot = TestConfiguration::GetInstance().rotateCubes;
+					rot = !rot;
+				}
+			}
 
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 
-		nanoSec += std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
+		auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
+		nanoSec += delta;
+		secondTrackerInNanoSec += delta;
 		lastUpdate = Clock::now();
+
+		//has a (multiplicia of) second(s) passed?
+		if (secondTrackerInNanoSec > 1000000000) {
+			auto title = "FPS: " + std::to_string(fps);
+			window->SetTitle(title.c_str());
+			secondTrackerInNanoSec %= 1000000000;
+			fps = 0;
+		}
 
 		if (testConfig.openHardwareMonitorData && 
 			nanoSec / 1000000 > probeCount * testConfig.probeInterval) 
@@ -115,6 +139,8 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 		++numOfFrames;
 		Update();
 		Render(*globalSwapchain, testConfig);
+		++fps;
+		
 	}
 
 	if (testConfig.pipelineStatistics) {

@@ -123,8 +123,8 @@ LPCTSTR WindowTitle = "THEN THE WINGED HUSSARS ARRIVED";
 
 
 // Set width and height of ze window
-int Width = 1000;
-int Height = 800;
+int Width = 800;
+int Height = 600;
 
 // fullscreen mode
 bool FullScreen = false;
@@ -134,7 +134,7 @@ bool Running = true;
 //*********
 
 // Main loop of the application
-void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig);
+void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig, Window* window);
 
 struct Vertex {
 	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
@@ -144,40 +144,40 @@ struct Vertex {
 
 Vertex vList[] = {
 	// front face
-	{ -1.0f,  1.0f, -1.0f, 0.0f, 0.0f },
-	{ 1.0f, -1.0f, -1.0f, 1.0f, 1.0f },
-	{ -1.0f, -1.0f, -1.0f, 0.0f, 1.0f },
-	{ 1.0f,  1.0f, -1.0f, 1.0f, 0.0f },
+	{ -0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
+	{ 0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
 
 	// right side face
-	{ 1.0f, -1.0f, -1.0f, 0.0f, 1.0f },
-	{ 1.0f,  1.0f,  1.0f, 1.0f, 0.0f },
-	{ 1.0f, -1.0f,  1.0f, 1.0f, 1.0f },
-	{ 1.0f,  1.0f, -1.0f, 0.0f, 0.0f },
+	{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+	{ 0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+	{ 0.5f,  0.5f, -0.5f, 0.0f, 0.0f },
 
 	// left side face
-	{ -1.0f,  1.0f,  1.0f, 0.0f, 0.0f },
-	{ -1.0f, -1.0f, -1.0f, 1.0f, 1.0f },
-	{ -1.0f, -1.0f,  1.0f, 0.0f, 1.0f },
-	{ -1.0f,  1.0f, -1.0f, 1.0f, 0.0f },
+	{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+	{ -0.5f,  0.5f, -0.5f, 1.0f, 0.0f },
 
 	// back face
-	{ 1.0f,  1.0f,  1.0f, 0.0f, 0.0f },
-	{ -1.0f, -1.0f,  1.0f, 1.0f, 1.0f },
-	{ 1.0f, -1.0f,  1.0f, 0.0f, 1.0f },
-	{ -1.0f,  1.0f,  1.0f, 1.0f, 0.0f },
+	{ 0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f,  0.5f, 1.0f, 1.0f },
+	{ 0.5f, -0.5f,  0.5f, 0.0f, 1.0f },
+	{ -0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
 
 	// top face
-	{ -1.0f,  1.0f, -1.0f, 0.0f, 1.0f },
-	{ 1.0f,  1.0f,  1.0f, 1.0f, 0.0f },
-	{ 1.0f,  1.0f, -1.0f, 1.0f, 1.0f },
-	{ -1.0f,  1.0f,  1.0f, 0.0f, 0.0f },
+	{ -0.5f,  0.5f, -0.5f, 0.0f, 1.0f },
+	{ 0.5f,  0.5f,  0.5f, 1.0f, 0.0f },
+	{ 0.5f,  0.5f, -0.5f, 1.0f, 1.0f },
+	{ -0.5f,  0.5f,  0.5f, 0.0f, 0.0f },
 
 	// bottom face
-	{ 1.0f, -1.0f,  1.0f, 0.0f, 0.0f },
-	{ -1.0f, -1.0f, -1.0f, 1.0f, 1.0f },
-	{ 1.0f, -1.0f, -1.0f, 0.0f, 1.0f },
-	{ -1.0f, -1.0f,  1.0f, 1.0f, 0.0f },
+	{ 0.5f, -0.5f,  0.5f, 0.0f, 0.0f },
+	{ -0.5f, -0.5f, -0.5f, 1.0f, 1.0f },
+	{ 0.5f, -0.5f, -0.5f, 0.0f, 1.0f },
+	{ -0.5f, -0.5f,  0.5f, 1.0f, 0.0f }
 };
 
 // Creating the index buffer
@@ -278,6 +278,9 @@ void SetTestConfiguration(LPSTR exeArgs, TestConfiguration& testConfig) {
 		}
 		else if (a == "-reuseComBuf") {
 			testConfig.reuseCommandBuffers = true;
+		}
+		else if (a == "-rotateCubes") {
+			testConfig.rotateCubes = true;
 		}
 	}
 }
