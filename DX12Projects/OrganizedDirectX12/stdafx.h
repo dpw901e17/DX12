@@ -217,11 +217,41 @@ PipelineStateHandler* globalPipeline;
 PipelineStateHandler* globalPipeline2;
 CommandListHandler* globalCommandListHandler;
 CommandListHandler* globalCommandListHandler2;
+CommandListHandler* globalStartCommandListHandler;
+CommandListHandler* globalEndCommandListHandler;
+
+std::vector<CommandListHandler*> drawCommandLists;
 
 //pipeline statistics:
 ID3D12QueryHeap* globalQueryHeap;
 ID3D12Resource* globalQueryResult;
 D3D12_QUERY_DATA_PIPELINE_STATISTICS* globalQueryBuffer;
+
+struct DrawCubesInfo
+{
+	int frameIndex;
+	CommandListHandler* commandListHandler;
+	PipelineStateHandler* pipelineStateHandler;
+	size_t cubeCount;
+	CubeContainer* globalCubeContainer;
+	ID3D12Resource** renderTargets;	//TODO: arbitrary number of backbuffers?
+	ID3D12DescriptorHeap* rtvDescriptorHeap;
+	int rtvDescriptorSize;
+	ID3D12DescriptorHeap* dsDescriptorHeap;
+	ID3D12RootSignature* rootSignature;
+	ID3D12DescriptorHeap* mainDescriptorHeap;
+	D3D12_VIEWPORT viewport;
+	D3D12_RECT scissorRect;
+	D3D12_VERTEX_BUFFER_VIEW* vertexBufferView;
+	D3D12_INDEX_BUFFER_VIEW* indexBufferView;
+	int numCubeIndices;
+	size_t drawStartIndex;
+};
+
+
+void DrawCubes(DrawCubesInfo& info);
+
+typedef void (*RenderJob) (DrawCubesInfo&);
 
 template<typename T>
 auto force_string(T arg) {
@@ -281,6 +311,15 @@ void SetTestConfiguration(LPSTR exeArgs, TestConfiguration& testConfig) {
 		}
 		else if (a == "-rotateCubes") {
 			testConfig.rotateCubes = true;
+		}
+		else if (a == "-threadCount") {
+			testConfig.drawThreadCount = stoi(args[i + 1]);
+		}
+		else if (a == "-cubeDim") {
+			testConfig.cubeDimension = stoi(args[i + 1]);
+		}
+		else if (a == "-cubePad") {
+			testConfig.cubePadding = stoi(args[i + 1]);
 		}
 	}
 }

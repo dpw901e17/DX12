@@ -81,7 +81,7 @@ void CommandListHandler::RecordClearScreenBuffers(ID3D12DescriptorHeap & rtvDesc
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, rtvDescriptorSize);
 
 	// Clears screen
-	const float clearColor[] = { 1.0f, 0.5f, 0.0f, 1.0f };
+	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
 	// clear the depth/stencil buffer

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <iostream>
+#include <thread>
 #include  "../../scene-window-system/Window.h"
 #include "../../scene-window-system/Camera.h"
 #include "../../scene-window-system/RenderObject.h"
@@ -18,16 +19,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	Window* win = new Window(hInstance, WindowName, WindowTitle, Width, Height);
 	hwnd = win->GetHandle();
 
-	/*
-	auto tempScene = Scene(Camera::Default(), { RenderObject(0, 0, 0),
-		RenderObject(0.5, 0.5, 0.5),
-		RenderObject(0.5, -0.5, 0.5),
-		RenderObject(-0.5, 0.5, 0.5),
-		RenderObject(-0.5, -0.5, 0.5) });
-	basicBoxScene = &tempScene;
-	*/
-	auto cubeCountPerDim = 8;
-	auto paddingFactor = 5;	//one full cube of space between actual cubes
+	TestConfiguration& testConfig = TestConfiguration::GetInstance();
+	SetTestConfiguration(lpCmdLine, testConfig);
+
+	auto cubeCountPerDim = testConfig.cubeDimension;
+	auto paddingFactor = testConfig.cubePadding;
 
 	Camera camera = Camera::Default();
 	auto heightFOV = camera.FieldOfView() / win->aspectRatio();
@@ -49,14 +45,14 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	DataCollection<WMIDataItem> wmiDataCollection;
 	DataCollection<PipelineStatisticsDataItem> pipelineStatisticsDataCollection;
 
-	TestConfiguration& testConfig = TestConfiguration::GetInstance();
-	SetTestConfiguration(lpCmdLine, testConfig);
-
 	mainloop(wmiDataCollection, pipelineStatisticsDataCollection, testConfig, win);
 
 	//Cleanup gpu.
 	WaitForPreviousFrame(*globalSwapchain);
 	CloseHandle(fenceEvent);
+
+	//TODO: fix diz!
+	//Cleanup(*globalSwapchain);
 
 	return 0;
 }
@@ -95,7 +91,7 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			else if (msg.message == WM_KEYDOWN) {
 				//TranslateMessage(&msg);
 				auto c = msg.wParam;
-				//r = 82
+				//'r' = 82
 				if (c == 82) {
 					bool& rot = TestConfiguration::GetInstance().rotateCubes;
 					rot = !rot;
@@ -614,8 +610,12 @@ void InitD3D(Window window) {
 	//setting globals
 	globalDevice = device;
 	globalSwapchain = swapChainHandler;
-	globalCommandListHandler = new CommandListHandler(*device, frameBufferCount);
-	globalCommandListHandler2 = new CommandListHandler(*device, frameBufferCount);
+	globalStartCommandListHandler = new CommandListHandler(*device, frameBufferCount);
+	globalEndCommandListHandler = new CommandListHandler(*device, frameBufferCount);
+
+	for (auto i = 0; i < TestConfiguration::GetInstance().drawThreadCount; i++) {
+		drawCommandLists.push_back(new CommandListHandler(*device, frameBufferCount));
+	}
 
 	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
 	queryHeapDesc.Count = 1;
@@ -658,25 +658,90 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 	auto cubeCount = basicBoxScene->renderObjects().size();
 
-	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalCommandListHandler->RecordOpen(renderTargets);
-	globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
-	globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, cubeCount / 2), numCubeIndices);
-	globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
-	globalCommandListHandler->Close();
+	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
+	std::vector<std::thread> threads;
 
-	globalCommandListHandler2->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
-	globalCommandListHandler2->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, cubeCount / 2, cubeCount / 2 + cubeCount % 2), numCubeIndices);
-	globalCommandListHandler2->RecordClosing(renderTargets);
-	globalCommandListHandler2->Close();
+	for (auto i = 0; i < threadCount; ++i) {
 
+		DrawCubesInfo info = {};
+		info.commandListHandler = drawCommandLists[i];
+		info.cubeCount = cubeCount / threadCount;
+		info.drawStartIndex = i * cubeCount / threadCount;
+		info.dsDescriptorHeap = dsDescriptorHeap;
+		info.frameIndex = frameIndex;
+		info.globalCubeContainer = globalCubeContainer;
+		info.indexBufferView = &indexBufferView;
+		info.mainDescriptorHeap = mainDescriptorHeap;
+		info.numCubeIndices = numCubeIndices;
+		info.pipelineStateHandler = globalPipeline;
+		info.renderTargets = renderTargets;
+		info.rootSignature = rootSignature;
+		info.rtvDescriptorHeap = rtvDescriptorHeap;
+		info.rtvDescriptorSize = rtvDescriptorSize;
+		info.scissorRect = scissorRect;
+		info.vertexBufferView = &vertexBufferView;
+		info.viewport = viewport;
 
+		threads.push_back(std::thread(DrawCubes, info));
+	}
+
+	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	globalStartCommandListHandler->RecordOpen(renderTargets);
+	globalStartCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
+	globalStartCommandListHandler->Close();
+
+	globalEndCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	globalEndCommandListHandler->RecordClosing(renderTargets);
+	globalEndCommandListHandler->Close();
+
+	for (auto& t : threads) {
+		t.join();
+	}
+
+	/*
+	auto job0 = [&cubeCount]() {
+		globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+		globalCommandListHandler->RecordOpen(renderTargets);
+		globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
+		globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+		globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+		globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, cubeCount / 2), numCubeIndices);
+		globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
+		globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
+		globalCommandListHandler->Close();
+	};
+
+	auto job1 = [&cubeCount]() {
+		globalCommandListHandler->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
+		globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+		globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, cubeCount / 2, cubeCount / 2 + cubeCount % 2), numCubeIndices);
+		globalCommandListHandler->RecordClosing(renderTargets);
+		globalCommandListHandler->Close();
+	};
+
+	std::thread t0(job0);
+	std::thread t1(job1);
+	*/
 	//get pipeline statistics data:
+}
 
+void DrawCubes(DrawCubesInfo& info)
+{
+	info.commandListHandler->Open(info.frameIndex, *info.pipelineStateHandler->GetPipelineStateObject());
+	info.commandListHandler->SetState(
+		info.renderTargets, 
+		*info.rtvDescriptorHeap, 
+		info.rtvDescriptorSize, 
+		*info.dsDescriptorHeap, 
+		*info.rootSignature, 
+		*info.mainDescriptorHeap, 
+		info.viewport, 
+		info.scissorRect, 
+		*info.vertexBufferView, 
+		*info.indexBufferView
+	);
+	info.commandListHandler->RecordDrawCalls(CubeContainer(*info.globalCubeContainer, info.drawStartIndex, info.cubeCount), info.numCubeIndices);
+	info.commandListHandler->Close();
 }
 
 void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
@@ -684,8 +749,17 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 	HRESULT hr;
 	UpdatePipeline(testConfig);
 
-	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList(), globalCommandListHandler2->GetCommandList()};
-	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	//ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList(), globalStartCommandListHandler->GetCommandList()};
+	std::vector<ID3D12CommandList*> comListVec;
+	comListVec.push_back(globalStartCommandListHandler->GetCommandList());
+
+	for (auto& comList : drawCommandLists) {
+		comListVec.push_back(comList->GetCommandList());
+	}
+
+	comListVec.push_back(globalEndCommandListHandler->GetCommandList());
+
+	commandQueue->ExecuteCommandLists(comListVec.size(), comListVec.data());
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
 
 	if (FAILED(hr))
@@ -715,6 +789,7 @@ void Cleanup(SwapChainHandler swapChainHandler)
 	delete globalDevice;
 	delete globalSwapchain;
 	SAFE_RELEASE(commandQueue);
+
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);	
 
@@ -728,6 +803,10 @@ void Cleanup(SwapChainHandler swapChainHandler)
 		SAFE_RELEASE(fence[i]);
 	};
 	delete globalCommandListHandler;
+
+	for (auto& comList : drawCommandLists) {
+		delete comList;
+	}
 
 	delete globalPipeline;
 	SAFE_RELEASE(rootSignature);
