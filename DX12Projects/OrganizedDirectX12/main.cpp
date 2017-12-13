@@ -635,6 +635,9 @@ void InitD3D(Window window) {
 	{
 		throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
 	}
+
+	//multithreading
+	globalThreadPool = new ThreadPool<DrawCubesInfo>(TestConfiguration::GetInstance().drawThreadCount);
 }
 
 void Update()
@@ -659,13 +662,13 @@ void UpdatePipeline(TestConfiguration testConfig)
 	auto cubeCount = basicBoxScene->renderObjects().size();
 
 	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
-	std::vector<std::thread> threads;
+	//std::vector<std::thread> threads;
 
 	for (auto i = 0; i < threadCount; ++i) {
 
 		DrawCubesInfo info = {};
 		info.commandListHandler = drawCommandLists[i];
-		info.cubeCount = cubeCount / threadCount;
+		info.cubeCount = cubeCount / threadCount + cubeCount % 2;
 		info.drawStartIndex = i * cubeCount / threadCount;
 		info.dsDescriptorHeap = dsDescriptorHeap;
 		info.frameIndex = frameIndex;
@@ -682,7 +685,8 @@ void UpdatePipeline(TestConfiguration testConfig)
 		info.vertexBufferView = &vertexBufferView;
 		info.viewport = viewport;
 
-		threads.push_back(std::thread(DrawCubes, info));
+		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
+		globalThreadPool->AddJob(job);
 	}
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
@@ -694,8 +698,9 @@ void UpdatePipeline(TestConfiguration testConfig)
 	globalEndCommandListHandler->RecordClosing(renderTargets);
 	globalEndCommandListHandler->Close();
 
-	for (auto& t : threads) {
-		t.join();
+	while (!globalThreadPool->Idle())
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(TEST_THREAD_JOB_WAIT_TIME));
 	}
 
 	/*
@@ -744,6 +749,7 @@ void DrawCubes(DrawCubesInfo& info)
 	info.commandListHandler->Close();
 }
 
+
 void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 {
 	HRESULT hr;
@@ -764,13 +770,16 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 
 	if (FAILED(hr))
 	{
-		std::runtime_error("Failed in creating signal on commandQueue");
+		throw std::runtime_error("Failed in creating signal on commandQueue");
 	}
 
 	hr = swapChainHandler.GetSwapChain()->Present(0, 0);
+
+	
 	if (FAILED(hr))
 	{
-		std::runtime_error("Failed to present swapchain.");
+		hr = globalDevice->GetDevice()->GetDeviceRemovedReason();
+		throw std::runtime_error("Failed to present swapchain.");
 	}
 }
 
@@ -824,7 +833,7 @@ void Cleanup(SwapChainHandler swapChainHandler)
 
 }
 
-void WaitForPreviousFrame(SwapChainHandler swapChainHandler)
+void WaitForPreviousFrame(SwapChainHandler& swapChainHandler)
 {
 	HRESULT hr;
 

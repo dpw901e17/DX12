@@ -21,6 +21,7 @@
 #include "../../scene-window-system/Scene.h"
 #include "../../scene-window-system/TestConfiguration.h"
 #include "../../scene-window-system/WmiAccess.h"
+#include "../../scene-window-system/ThreadPool.h"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -36,6 +37,7 @@
 #include "ResourceFactory.h"
 #include "PipelineStateHandler.h"
 #include "CommandListHandler.h"
+
 
 
 
@@ -107,7 +109,7 @@ void Update();
 void UpdatePipeline(TestConfiguration testConfig);
 void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig);
 void Cleanup(SwapChainHandler swapChainHandler);
-void WaitForPreviousFrame(SwapChainHandler swapChainHandler);
+void WaitForPreviousFrame(SwapChainHandler& swapChainHandler);
 
 
 //*********
@@ -250,6 +252,8 @@ struct DrawCubesInfo
 
 
 void DrawCubes(DrawCubesInfo& info);
+
+ThreadPool<DrawCubesInfo>* globalThreadPool;
 
 typedef void (*RenderJob) (DrawCubesInfo&);
 
