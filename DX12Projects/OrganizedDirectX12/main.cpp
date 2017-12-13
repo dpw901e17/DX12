@@ -668,8 +668,16 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 		DrawCubesInfo info = {};
 		info.commandListHandler = drawCommandLists[i];
-		info.cubeCount = cubeCount / threadCount + cubeCount % 2;
-		info.drawStartIndex = i * cubeCount / threadCount;
+
+		//last thread takes its share of cubes + the remainder after integer division
+		if (i == threadCount - 1) {
+			info.cubeCount = cubeCount / threadCount + cubeCount % threadCount;
+		}
+		else {
+			info.cubeCount = cubeCount / threadCount;
+		}
+
+		info.drawStartIndex = cubeCount / threadCount * i;
 		info.dsDescriptorHeap = dsDescriptorHeap;
 		info.frameIndex = frameIndex;
 		info.globalCubeContainer = globalCubeContainer;
@@ -759,11 +767,16 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 	std::vector<ID3D12CommandList*> comListVec;
 	comListVec.push_back(globalStartCommandListHandler->GetCommandList());
 
+	std::stringstream queueCommands;	//<-- for debugging..
 	for (auto& comList : drawCommandLists) {
 		comListVec.push_back(comList->GetCommandList());
+
+		queueCommands << "ID3D12CommandList: " << comList->GetCommandList() << "\r\n";
+		queueCommands << comList->GetGPUCommandDebugString();
 	}
 
 	comListVec.push_back(globalEndCommandListHandler->GetCommandList());
+
 
 	commandQueue->ExecuteCommandLists(comListVec.size(), comListVec.data());
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);

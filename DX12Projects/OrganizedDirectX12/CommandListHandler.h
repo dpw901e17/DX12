@@ -1,5 +1,6 @@
 #pragma once
 #include "CubeContainer.h"
+#include <string>
 
 class CommandListHandler {
 public:
@@ -15,9 +16,15 @@ public:
 	void Close();
 	ID3D12GraphicsCommandList* GetCommandList() const;
 
+	//TODO: remove this?
+	std::string& GetGPUCommandDebugString() { return gpuCommandDebug; };
+
 private:
 	int m_frameBufferIndex;
 	std::vector<ID3D12CommandAllocator*> m_commandAllocators;
 	ID3D12GraphicsCommandList* m_commandList;
 	void CreateCommandAllocators(const Device& device, int frameBufferCount);
+	
+	//TODO: remove this?
+	std::string gpuCommandDebug;
 };
