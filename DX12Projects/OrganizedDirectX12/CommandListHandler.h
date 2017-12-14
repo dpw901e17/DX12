@@ -8,9 +8,9 @@ public:
 	~CommandListHandler();
 	
 	void SetState(ID3D12Resource * renderTargets[], ID3D12DescriptorHeap & rtvDescriptorHeap, int rtvDescriptorSize, ID3D12DescriptorHeap & dsDescriptorHeap, ID3D12RootSignature & rootSignature, ID3D12DescriptorHeap & mainDescriptorHeap, D3D12_VIEWPORT & viewport, D3D12_RECT & scissorRect, D3D12_VERTEX_BUFFER_VIEW & vertexBufferView, D3D12_INDEX_BUFFER_VIEW & indexBufferView);
-	void RecordDrawCalls(const CubeContainer& cubeContainer, int numCubeIndices);
+	void RecordDrawCalls(const CubeContainer& cubeContainer, int numCubeIndices, ID3D12QueryHeap* queryHeap = nullptr, int queryIndex = -1);
 	void RecordOpen(ID3D12Resource* renderTargets[]);
-	void RecordClosing(ID3D12Resource * renderTargets[]);
+	void RecordClosing(ID3D12Resource * renderTargets[], ID3D12QueryHeap* queryHeap = nullptr, int queryCount = -1, ID3D12Resource* queryResult = nullptr);
 	void RecordClearScreenBuffers(ID3D12DescriptorHeap & rtvDescriptorHeap, int rtvDescriptorSize, ID3D12DescriptorHeap & dsDescriptorHeap);
 	void Open(int frameBufferIndex, ID3D12PipelineState& pipeline);
 	void Close();

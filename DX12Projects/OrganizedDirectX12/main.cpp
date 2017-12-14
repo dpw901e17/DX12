@@ -79,7 +79,8 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 		wmiAccesor.Connect("OpenHardwareMonitor");
 	}
 
-	int fps = 0;
+	int fps = 0;	//<-- this one is incremented each frame (and reset once a second)
+	int oldfps = 0;	//<-- this one is recorded by the probe (and set once per second)
 	size_t secondTrackerInNanoSec = 0;
 	while (Running && (nanoSec / 1000000000 < testConfig.seconds) || (testConfig.seconds == 0))
 	{
@@ -112,6 +113,7 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			auto title = "FPS: " + std::to_string(fps);
 			window->SetTitle(title.c_str());
 			secondTrackerInNanoSec %= 1000000000;
+			oldfps = fps;
 			fps = 0;
 		}
 
@@ -121,40 +123,45 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			//QueryItem queries one item from WMI, which is separated into multiple items (put in a vector here)
 			auto items = wmiAccesor.QueryItem("sensor", probeProperties, 3);
 
-			//each item needs a timestamp and an id ( = probeCount)
+			//each item needs a timestamp and an id ( = probeCount) and the last completely measured FPS
 			for (auto& item : items) {
 				item.Timestamp = std::to_string(nanoSec);
 				item.Id = std::to_string(probeCount);
+				item.FPS = std::to_string(oldfps);
 				wmiDataCollection.Add(item);
 			}
 
 			++probeCount;
 		}
 
-		//run gamecode
 		++numOfFrames;
+
+		//run matrices
 		Update();
 		Render(*globalSwapchain, testConfig);
 		++fps;
-		
 	}
 
 	if (testConfig.pipelineStatistics) {
-		PipelineStatisticsDataItem item;
+		for (auto i = 0; i < testConfig.drawThreadCount; ++i) {
 
-		item.CInvocations	= force_string(globalQueryBuffer->CInvocations);
-		item.CPrimitives	= force_string(globalQueryBuffer->CPrimitives);
-		item.CSInvocations	= force_string(globalQueryBuffer->CSInvocations);
-		item.DSInvocations	= force_string(globalQueryBuffer->DSInvocations);
-		item.GSInvocations	= force_string(globalQueryBuffer->GSInvocations);
-		item.GSPrimitives	= force_string(globalQueryBuffer->GSPrimitives);
-		item.HSInvocations	= force_string(globalQueryBuffer->HSInvocations);
-		item.IAPrimitives	= force_string(globalQueryBuffer->IAPrimitives);
-		item.IAVertices		= force_string(globalQueryBuffer->IAVertices);
-		item.PSInvocations	= force_string(globalQueryBuffer->PSInvocations);
-		item.VSInvocations	= force_string(globalQueryBuffer->VSInvocations);
+			PipelineStatisticsDataItem item;
 
-		pipelineStatisticsDataCollection.Add(item);
+			item.CommandListId = force_string(i);
+			item.CInvocations = force_string(globalQueryBuffer[i].CInvocations);
+			item.CPrimitives = force_string(globalQueryBuffer[i].CPrimitives);
+			item.CSInvocations = force_string(globalQueryBuffer[i].CSInvocations);
+			item.DSInvocations = force_string(globalQueryBuffer[i].DSInvocations);
+			item.GSInvocations = force_string(globalQueryBuffer[i].GSInvocations);
+			item.GSPrimitives = force_string(globalQueryBuffer[i].GSPrimitives);
+			item.HSInvocations = force_string(globalQueryBuffer[i].HSInvocations);
+			item.IAPrimitives = force_string(globalQueryBuffer[i].IAPrimitives);
+			item.IAVertices = force_string(globalQueryBuffer[i].IAVertices);
+			item.PSInvocations = force_string(globalQueryBuffer[i].PSInvocations);
+			item.VSInvocations = force_string(globalQueryBuffer[i].VSInvocations);
+
+			pipelineStatisticsDataCollection.Add(item);
+		}
 	}
 
 	auto now = time(NULL);
@@ -179,6 +186,11 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
 		auto csvStr = pipelineStatisticsDataCollection.MakeString(";");
 		SaveToFile("stat_" + fname + ".csv", csvStr);
+	}
+
+	if (testConfig.exportCsv) {
+		auto csvStr = TestConfiguration::GetInstance().MakeString(";");
+		SaveToFile("conf_" + fname + ".csv", csvStr);
 	}
 
 	delete localNow;
@@ -618,7 +630,7 @@ void InitD3D(Window window) {
 	}
 
 	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
-	queryHeapDesc.Count = 1;
+	queryHeapDesc.Count = TestConfiguration::GetInstance().drawThreadCount;
 	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
 
 	if (FAILED(device->GetDevice()->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&globalQueryHeap)))) {
@@ -628,7 +640,7 @@ void InitD3D(Window window) {
 	if (FAILED(device->GetDevice()->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), 
 		D3D12_HEAP_FLAG_NONE, 
-		&CD3DX12_RESOURCE_DESC::Buffer(11 * 8), 
+		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS) * TestConfiguration::GetInstance().drawThreadCount),
 		D3D12_RESOURCE_STATE_COPY_DEST, 
 		nullptr, 
 		IID_PPV_ARGS(&globalQueryResult)))) 
@@ -654,7 +666,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 		D3D12_RANGE emptyRange = { 0,0 };
 		D3D12_RANGE range = {};
 		range.Begin = 0;
-		range.End = 11 * 8;
+		range.End = sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS) * TestConfiguration::GetInstance().drawThreadCount;
 		globalQueryResult->Map(0, &range, reinterpret_cast<void**>(&globalQueryBuffer));
 		globalQueryResult->Unmap(0, &emptyRange);
 	}
@@ -692,6 +704,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 		info.scissorRect = scissorRect;
 		info.vertexBufferView = &vertexBufferView;
 		info.viewport = viewport;
+		info.queryIndex = i;
 
 		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
 		globalThreadPool->AddJob(job);
@@ -703,7 +716,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 	globalStartCommandListHandler->Close();
 
 	globalEndCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalEndCommandListHandler->RecordClosing(renderTargets);
+	globalEndCommandListHandler->RecordClosing(renderTargets, globalQueryHeap, threadCount, globalQueryResult);
 	globalEndCommandListHandler->Close();
 
 	while (!globalThreadPool->Idle())
@@ -735,7 +748,6 @@ void UpdatePipeline(TestConfiguration testConfig)
 	std::thread t0(job0);
 	std::thread t1(job1);
 	*/
-	//get pipeline statistics data:
 }
 
 void DrawCubes(DrawCubesInfo& info)
@@ -753,7 +765,7 @@ void DrawCubes(DrawCubesInfo& info)
 		*info.vertexBufferView, 
 		*info.indexBufferView
 	);
-	info.commandListHandler->RecordDrawCalls(CubeContainer(*info.globalCubeContainer, info.drawStartIndex, info.cubeCount), info.numCubeIndices);
+	info.commandListHandler->RecordDrawCalls(CubeContainer(*info.globalCubeContainer, info.drawStartIndex, info.cubeCount), info.numCubeIndices, globalQueryHeap, info.queryIndex);
 	info.commandListHandler->Close();
 }
 

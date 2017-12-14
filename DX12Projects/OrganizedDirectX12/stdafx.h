@@ -248,6 +248,7 @@ struct DrawCubesInfo
 	D3D12_INDEX_BUFFER_VIEW* indexBufferView;
 	int numCubeIndices;
 	size_t drawStartIndex;
+	int queryIndex; //<-- used for pipeline statistics
 };
 
 

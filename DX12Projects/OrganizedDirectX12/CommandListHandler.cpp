@@ -1,4 +1,5 @@
 #include "CommandListHandler.h"
+#include "../../scene-window-system/TestConfiguration.h"
 #include <sstream>
 
 CommandListHandler::CommandListHandler(const Device & device, int frameBufferCount)
@@ -76,17 +77,27 @@ void CommandListHandler::SetState(ID3D12Resource * renderTargets[], ID3D12Descri
 
 
 
-void CommandListHandler::RecordDrawCalls(const CubeContainer& cubeContainer, int numCubeIndices)
+void CommandListHandler::RecordDrawCalls(const CubeContainer& cubeContainer, int numCubeIndices, ID3D12QueryHeap* queryHeap, int queryIndex)
 {
 	std::stringstream gpuComDebugStream;
 	gpuComDebugStream << gpuCommandDebug;
 	gpuComDebugStream << "/******************** CommandListHandler [" << m_commandList << "] :: RecordDrawCalls() ********************/ \r\n";
-	
+
+	if (TestConfiguration::GetInstance().pipelineStatistics) {
+		m_commandList->BeginQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, queryIndex);
+		gpuComDebugStream << "BeginQuery(queryHeap [" << queryHeap << "], D3D12_QUERY_TYPE_PIPELINE_STATISTICS, queryIndex [" << queryIndex << "])\r\n";
+	}
+
 	for (auto i = 0; i < cubeContainer.GetCubes().size(); ++i) {
 		m_commandList->SetGraphicsRootConstantBufferView(0, cubeContainer.GetVirtualAddress(i, m_frameBufferIndex));
 		gpuComDebugStream << "SetGraphicsRootConstantBufferView(0, cubeContainer.GetVirtualAddress(i [" << i << "], m_frameBufferIndex [" << m_frameBufferIndex << "]) [" << cubeContainer.GetVirtualAddress(i, m_frameBufferIndex) << "]) \r\n";
 		m_commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 		gpuComDebugStream << "DrawIndexedInstanced(numCubeIndices [" << numCubeIndices << "], 1, 0, 0, 0) \r\n";
+	}
+
+	if (TestConfiguration::GetInstance().pipelineStatistics) {
+		m_commandList->EndQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, queryIndex);
+		gpuComDebugStream << "EndQuery(queryHeap [" << queryHeap << "], D3D12_QUERY_TYPE_PIPELINE_STATISTICS, queryIndex [" << queryIndex << "])\r\n";
 	}
 
 	gpuComDebugStream << "\r\n";
@@ -106,11 +117,16 @@ void CommandListHandler::RecordOpen(ID3D12Resource * renderTargets[])
 	gpuCommandDebug = gpuComDebugStream.str();
 }
 
-void CommandListHandler::RecordClosing(ID3D12Resource * renderTargets[])
+void CommandListHandler::RecordClosing(ID3D12Resource * renderTargets[], ID3D12QueryHeap* queryHeap, int queryCount, ID3D12Resource* queryResult)
 {
 	std::stringstream gpuComDebugStream;
 	gpuComDebugStream << gpuCommandDebug;
 	gpuComDebugStream << "/******************** CommandListHandler [" << m_commandList << "] :: RecordClosing() ********************/ \r\n";
+
+	if (TestConfiguration::GetInstance().pipelineStatistics) {
+		m_commandList->ResolveQueryData(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, queryCount, queryResult, 0);
+		gpuComDebugStream << "ResolveQueryData(queryHeap ["<<queryHeap <<"], D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, queryCount ["<<queryCount <<"], queryResult ["<<queryResult<<"], 0)\r\n";
+	}
 
 	m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(renderTargets[m_frameBufferIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
