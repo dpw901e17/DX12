@@ -20,7 +20,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	hwnd = win->GetHandle();
 
 	TestConfiguration& testConfig = TestConfiguration::GetInstance();
-	SetTestConfiguration(lpCmdLine, testConfig);
+	TestConfiguration::SetTestConfiguration(lpCmdLine);
 
 	auto cubeCountPerDim = testConfig.cubeDimension;
 	auto paddingFactor = testConfig.cubePadding;
@@ -133,8 +133,6 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 
 			++probeCount;
 		}
-
-		++numOfFrames;
 
 		//run matrices
 		Update();

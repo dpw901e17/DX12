@@ -98,7 +98,6 @@ ID3D12Resource* textureBufferUploadHeap;
 
 //Scene Objects
 Scene* basicBoxScene;
-uint64_t numOfFrames = 0;
 
 
 //*********
@@ -274,57 +273,3 @@ void SaveToFile(const std::string& file, const std::string& data)
 }
 
 void Arrange_OHM_Data(const std::string* dataArr, WMIDataItem* item);
-
-void SetTestConfiguration(LPSTR exeArgs, TestConfiguration& testConfig) {
-	//get exe arguments
-	std::vector<std::string> args;
-
-	std::string str(exeArgs);
-	std::string arg = "";
-	for (char c : str) {
-		if (c == ' ') {
-			args.push_back(arg);
-			arg = "";
-		}
-		else {
-			arg += c;
-		}
-	}
-
-	args.push_back(arg);
-
-	std::string a = "";
-	for (auto i = 0; i < args.size(); ++i) {
-		a = args[i];
-		if (a == "-csv") {
-			testConfig.exportCsv = true;
-		}
-		else if (a == "-sec") {
-			testConfig.seconds = stoi(args[i + 1]);
-		}
-		else if (a == "-OHM") {
-			testConfig.openHardwareMonitorData = true;
-		}
-		else if (a == "-pipelineStatistics") {
-			testConfig.pipelineStatistics = true;
-		}
-		else if (a == "-pi") {
-			testConfig.probeInterval = stoi(args[i + 1]);
-		}
-		else if (a == "-reuseComBuf") {
-			testConfig.reuseCommandBuffers = true;
-		}
-		else if (a == "-rotateCubes") {
-			testConfig.rotateCubes = true;
-		}
-		else if (a == "-threadCount") {
-			testConfig.drawThreadCount = stoi(args[i + 1]);
-		}
-		else if (a == "-cubeDim") {
-			testConfig.cubeDimension = stoi(args[i + 1]);
-		}
-		else if (a == "-cubePad") {
-			testConfig.cubePadding = stoi(args[i + 1]);
-		}
-	}
-}
