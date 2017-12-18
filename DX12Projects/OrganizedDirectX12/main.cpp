@@ -669,8 +669,12 @@ void UpdatePipeline(TestConfiguration testConfig)
 		globalQueryResult->Unmap(0, &emptyRange);
 	}
 
+
+
+
 	auto cubeCount = basicBoxScene->renderObjects().size();
 
+	/*
 	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
 	//std::vector<std::thread> threads;
 
@@ -707,20 +711,32 @@ void UpdatePipeline(TestConfiguration testConfig)
 		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
 		globalThreadPool->AddJob(job);
 	}
+	*/
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
 	globalStartCommandListHandler->RecordOpen(renderTargets);
 	globalStartCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
 	globalStartCommandListHandler->Close();
 
+	
+
+	drawCommandLists[0]->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
+	drawCommandLists[0]->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+	drawCommandLists[0]->RecordDrawCalls(*globalCubeContainer, numCubeIndices);
+	drawCommandLists[0]->Close();
+
+
+
 	globalEndCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalEndCommandListHandler->RecordClosing(renderTargets, globalQueryHeap, threadCount, globalQueryResult);
+	globalEndCommandListHandler->RecordClosing(renderTargets, globalQueryHeap, 1, globalQueryResult);
 	globalEndCommandListHandler->Close();
 
+	/*
 	while (!globalThreadPool->Idle())
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(TEST_THREAD_JOB_WAIT_TIME));
 	}
+	/*
 
 	/*
 	auto job0 = [&cubeCount]() {
