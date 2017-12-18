@@ -38,6 +38,37 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	camera.SetPosition({ 0.0f, 0.0f, z, 1.0f });
 	camera.SetFar(z + base + camera.Near());
 	auto tmpScene = Scene(camera, cubeCountPerDim, paddingFactor);
+	
+	/*
+	tmpScene.m_RenderObjects = { RenderObject(0, 0, 0),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5),
+		RenderObject(0.5, 0.5, 0.5),
+		RenderObject(0.5, -0.5, 0.5),
+		RenderObject(-0.5, 0.5, 0.5),
+		RenderObject(-0.5, -0.5, 0.5) };
+	*/
 
 	basicBoxScene = &tmpScene;
 
