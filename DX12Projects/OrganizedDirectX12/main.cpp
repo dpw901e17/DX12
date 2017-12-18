@@ -26,7 +26,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
 	*/
-	auto cubeCountPerDim = 8;
+	auto cubeCountPerDim = 3;
 	auto paddingFactor = 5;	//one full cube of space between actual cubes
 
 	Camera camera = Camera::Default();
@@ -46,13 +46,10 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	//PlaySound("wh.wav", NULL, SND_FILENAME | SND_ASYNC);
 
-	DataCollection<WMIDataItem> wmiDataCollection;
-	DataCollection<PipelineStatisticsDataItem> pipelineStatisticsDataCollection;
-
 	TestConfiguration& testConfig = TestConfiguration::GetInstance();
 	SetTestConfiguration(lpCmdLine, testConfig);
 
-	mainloop(wmiDataCollection, pipelineStatisticsDataCollection, testConfig, win);
+	mainloop(testConfig, win);
 
 	//Cleanup gpu.
 	WaitForPreviousFrame(*globalSwapchain);
@@ -61,7 +58,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	return 0;
 }
 
-void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig, Window* window)
+void mainloop(TestConfiguration& testConfig, Window* window)
 {
 	//Mainloop keeps an eye out if we are recieving
 	//any message from the callback function. If we are
@@ -76,13 +73,6 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 	size_t probeCount = 0;
 	auto lastUpdate = Clock::now();
 
-	WMIAccessor wmiAccesor;
-	_bstr_t probeProperties[] = { "Identifier", "Value", "SensorType" };
-
-	if (testConfig.openHardwareMonitorData) {
-		wmiAccesor.Connect("OpenHardwareMonitor");
-	}
-
 	int fps = 0;
 	size_t secondTrackerInNanoSec = 0;
 	while (Running && (nanoSec / 1000000000 < testConfig.seconds) || (testConfig.seconds == 0))
@@ -92,15 +82,7 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			if (msg.message == WM_QUIT) {
 				break;
 			}
-			else if (msg.message == WM_KEYDOWN) {
-				//TranslateMessage(&msg);
-				auto c = msg.wParam;
-				//r = 82
-				if (c == 82) {
-					bool& rot = TestConfiguration::GetInstance().rotateCubes;
-					rot = !rot;
-				}
-			}
+			
 
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
@@ -119,22 +101,6 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			fps = 0;
 		}
 
-		if (testConfig.openHardwareMonitorData && 
-			nanoSec / 1000000 > probeCount * testConfig.probeInterval) 
-		{
-			//QueryItem queries one item from WMI, which is separated into multiple items (put in a vector here)
-			auto items = wmiAccesor.QueryItem("sensor", probeProperties, 3);
-
-			//each item needs a timestamp and an id ( = probeCount)
-			for (auto& item : items) {
-				item.Timestamp = std::to_string(nanoSec);
-				item.Id = std::to_string(probeCount);
-				wmiDataCollection.Add(item);
-			}
-
-			++probeCount;
-		}
-
 		//run gamecode
 		++numOfFrames;
 		Update();
@@ -143,49 +109,6 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 		
 	}
 
-	if (testConfig.pipelineStatistics) {
-		PipelineStatisticsDataItem item;
-
-		item.CInvocations	= force_string(globalQueryBuffer->CInvocations);
-		item.CPrimitives	= force_string(globalQueryBuffer->CPrimitives);
-		item.CSInvocations	= force_string(globalQueryBuffer->CSInvocations);
-		item.DSInvocations	= force_string(globalQueryBuffer->DSInvocations);
-		item.GSInvocations	= force_string(globalQueryBuffer->GSInvocations);
-		item.GSPrimitives	= force_string(globalQueryBuffer->GSPrimitives);
-		item.HSInvocations	= force_string(globalQueryBuffer->HSInvocations);
-		item.IAPrimitives	= force_string(globalQueryBuffer->IAPrimitives);
-		item.IAVertices		= force_string(globalQueryBuffer->IAVertices);
-		item.PSInvocations	= force_string(globalQueryBuffer->PSInvocations);
-		item.VSInvocations	= force_string(globalQueryBuffer->VSInvocations);
-
-		pipelineStatisticsDataCollection.Add(item);
-	}
-
-	auto now = time(NULL);
-	tm* localNow = new tm();
-	localtime_s(localNow, &now);
-
-	auto yearStr = std::to_string((1900 + localNow->tm_year));
-	auto monthStr = localNow->tm_mon < 9 ? "0" + std::to_string(localNow->tm_mon + 1) : std::to_string(localNow->tm_mon + 1);
-	auto dayStr = localNow->tm_mday < 10 ? "0" + std::to_string(localNow->tm_mday) : std::to_string(localNow->tm_mday);
-	auto hourStr = localNow->tm_hour < 10 ? "0" + std::to_string(localNow->tm_hour) : std::to_string(localNow->tm_hour);
-	auto minStr = localNow->tm_min < 10 ? "0" + std::to_string(localNow->tm_min) : std::to_string(localNow->tm_min);
-	auto secStr = localNow->tm_sec < 10 ? "0" + std::to_string(localNow->tm_sec) : std::to_string(localNow->tm_sec);
-
-	auto fname = yearStr + monthStr + dayStr + hourStr + minStr + secStr;
-
-	if (testConfig.exportCsv && testConfig.openHardwareMonitorData) {
-
-		auto csvStr = wmiDataCollection.MakeString(";");
-		SaveToFile("data_" + fname + ".csv", csvStr);
-	}
-
-	if (testConfig.exportCsv && testConfig.pipelineStatistics) {
-		auto csvStr = pipelineStatisticsDataCollection.MakeString(";");
-		SaveToFile("stat_" + fname + ".csv", csvStr);
-	}
-
-	delete localNow;
 }
 
 IDXGIFactory4* CreateDXGIFactory() {
@@ -535,19 +458,6 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 
 void InitD3D(Window window) {
 	HRESULT hr;
-	
-	ID3D12Debug* debugController;
-	ID3D12Debug1* debug1Controller;
-	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
-	if (FAILED(hr)) {
-		throw std::runtime_error("Failed to initialize debug controller!");
-	
-	}
-	else if (SUCCEEDED(hr)) {
-		debugController->EnableDebugLayer();
-		debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
-		debug1Controller->SetEnableGPUBasedValidation(true);
-	}
 
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
 	Device* device = new Device(dxgiFactory);
@@ -616,25 +526,6 @@ void InitD3D(Window window) {
 	globalSwapchain = swapChainHandler;
 	globalCommandListHandler = new CommandListHandler(*device, frameBufferCount);
 	globalCommandListHandler2 = new CommandListHandler(*device, frameBufferCount);
-
-	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
-	queryHeapDesc.Count = 1;
-	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
-
-	if (FAILED(device->GetDevice()->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&globalQueryHeap)))) {
-		throw std::runtime_error("Could not create query heap (for pipeline statistics)!");
-	}
-
-	if (FAILED(device->GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), 
-		D3D12_HEAP_FLAG_NONE, 
-		&CD3DX12_RESOURCE_DESC::Buffer(11 * 8), 
-		D3D12_RESOURCE_STATE_COPY_DEST, 
-		nullptr, 
-		IID_PPV_ARGS(&globalQueryResult)))) 
-	{
-		throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
-	}
 }
 
 void Update()
@@ -647,33 +538,15 @@ void UpdatePipeline(TestConfiguration testConfig)
 {
 	WaitForPreviousFrame(*globalSwapchain);
 
-	if (testConfig.pipelineStatistics) {
-		D3D12_RANGE emptyRange = { 0,0 };
-		D3D12_RANGE range = {};
-		range.Begin = 0;
-		range.End = 11 * 8;
-		globalQueryResult->Map(0, &range, reinterpret_cast<void**>(&globalQueryBuffer));
-		globalQueryResult->Unmap(0, &emptyRange);
-	}
-
 	auto cubeCount = basicBoxScene->renderObjects().size();
 
 	globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
 	globalCommandListHandler->RecordOpen(renderTargets);
 	globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
 	globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, cubeCount / 2), numCubeIndices);
-	globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-	globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
+	globalCommandListHandler->RecordDrawCalls(*globalCubeContainer, numCubeIndices);
+	globalCommandListHandler->RecordClosing(renderTargets);
 	globalCommandListHandler->Close();
-
-	globalCommandListHandler2->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
-	globalCommandListHandler2->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	globalCommandListHandler2->RecordDrawCalls(CubeContainer(*globalCubeContainer, cubeCount / 2, cubeCount / 2 + cubeCount % 2), numCubeIndices);
-	globalCommandListHandler2->RecordClosing(renderTargets);
-	globalCommandListHandler2->Close();
-
 
 	//get pipeline statistics data:
 
@@ -684,7 +557,7 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 	HRESULT hr;
 	UpdatePipeline(testConfig);
 
-	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList(), globalCommandListHandler2->GetCommandList()};
+	ID3D12CommandList* ppCommandLists[] = { globalCommandListHandler->GetCommandList()};
 	commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
 
@@ -718,8 +591,6 @@ void Cleanup(SwapChainHandler swapChainHandler)
 	SAFE_RELEASE(rtvDescriptorHeap);
 	SAFE_RELEASE(commandList);	
 
-	SAFE_RELEASE(globalQueryResult);
-	SAFE_RELEASE(globalQueryHeap);
 
 	for (int i = 0; i < frameBufferCount; ++i)
 	{

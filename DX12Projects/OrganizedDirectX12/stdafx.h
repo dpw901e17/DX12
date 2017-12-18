@@ -134,7 +134,7 @@ bool Running = true;
 //*********
 
 // Main loop of the application
-void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<PipelineStatisticsDataItem>& pipelineStatisticsDataCollection, TestConfiguration& testConfig, Window* window);
+void mainloop( TestConfiguration& testConfig, Window* window);
 
 struct Vertex {
 	Vertex(float x, float y, float z, float u, float v) : pos(x, y, z), texCoord(u, v) {}
