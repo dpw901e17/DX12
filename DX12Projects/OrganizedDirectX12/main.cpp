@@ -26,8 +26,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		RenderObject(-0.5, -0.5, 0.5) });
 	basicBoxScene = &tempScene;
 	*/
-	auto cubeCountPerDim = 3;
-	auto paddingFactor = 5;	//one full cube of space between actual cubes
+	auto cubeCountPerDim = 30;
+	auto paddingFactor = 1;	//one full cube of space between actual cubes
 
 	Camera camera = Camera::Default();
 	auto heightFOV = camera.FieldOfView() / win->aspectRatio();

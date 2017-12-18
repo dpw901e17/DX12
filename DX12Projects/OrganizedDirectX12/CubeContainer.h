@@ -22,7 +22,7 @@ public:
 	const std::vector<ID3D12Resource*> GetUploadHeapResources() const;
 	const DirectX::XMFLOAT4X4 GetProjectionMatrix() const;
 	const DirectX::XMFLOAT4X4 GetViewMatrix() const;
-	const std::vector<Cube> GetCubes() const;
+	const std::vector<Cube>& GetCubes() const;
 
 
 private:

@@ -67,7 +67,7 @@ const DirectX::XMFLOAT4X4 CubeContainer::GetViewMatrix() const
 	return cameraViewMat;
 }
 
-const std::vector<Cube> CubeContainer::GetCubes() const
+const std::vector<Cube>& CubeContainer::GetCubes() const
 {
 	return cubes;
 }

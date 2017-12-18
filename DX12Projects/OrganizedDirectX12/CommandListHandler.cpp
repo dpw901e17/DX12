@@ -59,8 +59,8 @@ void CommandListHandler::SetState(ID3D12Resource * renderTargets[], ID3D12Descri
 
 void CommandListHandler::RecordDrawCalls(const CubeContainer& cubeContainer, int numCubeIndices)
 {
-	
-	for (auto i = 0; i < cubeContainer.GetCubes().size(); ++i) {
+	auto size = cubeContainer.GetCubes().size();
+	for (auto i = 0; i < size; ++i) {
 		m_commandList->SetGraphicsRootConstantBufferView(0, cubeContainer.GetVirtualAddress(i, m_frameBufferIndex));
 		m_commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 	}
