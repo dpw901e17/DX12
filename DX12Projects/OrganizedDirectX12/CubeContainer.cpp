@@ -8,7 +8,6 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	auto sizeInBytes = constantBufferPerObjectAllignedSize * numberOfCubes;
 
 	for (int i = 0; i < numberOfFrameBuffers; ++i) {
-		// create resource for cube(s)
 		ID3D12Resource* uploadHeapResource = ResourceFactory::CreateUploadHeap(device, sizeInBytes, L"Constant Buffer Upload Resource Heap");
 		uploadHeapResources.push_back(uploadHeapResource);
 	}
@@ -16,7 +15,6 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	cameraViewMat = CreateViewMatrix(scene.camera());
 	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
 
-	// Initialize all cubes with an index
 	auto dimSize = std::cbrt(scene.renderObjects().size());
 	auto scale = dimSize * dimSize;
 	for (auto i = 0; i < numberOfCubes; ++i) {
@@ -37,7 +35,6 @@ CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t s
 
 CubeContainer::~CubeContainer()
 {
-	// Clean up uploadheaps
 }
 
 void CubeContainer::UpdateFrame(int frameIndex)
@@ -93,7 +90,6 @@ DirectX::XMFLOAT4X4 CubeContainer::CreateViewMatrix(Camera cam)
 	const Vec4f& camUp = cam.Up();
 	auto cameraUp = DirectX::XMFLOAT4(camUp.x, camUp.y, camUp.z, camUp.w);
 
-	// build view matrix
 	DirectX::XMVECTOR cPos = DirectX::XMLoadFloat4(&cameraPosition);
 	DirectX::XMVECTOR cTarg = DirectX::XMLoadFloat4(&cameraTarget);
 	DirectX::XMVECTOR cUp = DirectX::XMLoadFloat4(&cameraUp);

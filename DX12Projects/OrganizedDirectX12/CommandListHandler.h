@@ -16,7 +16,6 @@ public:
 	void Close();
 	ID3D12GraphicsCommandList* GetCommandList() const;
 
-	//TODO: remove this?
 	std::string& GetGPUCommandDebugString() { return gpuCommandDebug; };
 
 private:
@@ -25,6 +24,5 @@ private:
 	ID3D12GraphicsCommandList* m_commandList;
 	void CreateCommandAllocators(const Device& device, int frameBufferCount);
 	
-	//TODO: remove this?
 	std::string gpuCommandDebug;
 };

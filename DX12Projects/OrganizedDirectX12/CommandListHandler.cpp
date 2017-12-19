@@ -34,28 +34,21 @@ void CommandListHandler::SetState(ID3D12Resource * renderTargets[], ID3D12Descri
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, rtvDescriptorSize);
 
-	// get handle to depth/stencil buffer
 	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart());
 
-	// Sets destination of output merger.
-	// Also sets the depth/stencil buffer for OM use. 
 	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 	gpuComDebugStream << "OMSetRenderTargets(1, &rtvHandle [" << &rtvHandle << "], FALSE, &dsvHandle [" << &dsvHandle << "]) \r\n";
 
-	// set root signature
 	m_commandList->SetGraphicsRootSignature(&rootSignature);
 	gpuComDebugStream << "SetGraphicsRootSignature(&rootSignature [" << &rootSignature << "]) \r\n";
 
-	//set descriptor heap
 	ID3D12DescriptorHeap* descriptorHeaps[] = { &mainDescriptorHeap };
 	m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 	gpuComDebugStream << "SetDescriptorHeaps(_countof(descriptorHeaps) [" << _countof(descriptorHeaps) << "], descriptorHeaps [" << descriptorHeaps << "]) \r\n";
 
-	//set descriptor table index 1 of the root signature. (corresponding to parameter order defined in the signature)
 	m_commandList->SetGraphicsRootDescriptorTable(1, mainDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 	gpuComDebugStream << "SetGraphicsRootDescriptorTable(1, mainDescriptorHeap.GetGPUDescriptorHandleForHeapStart() [" << &mainDescriptorHeap.GetGPUDescriptorHandleForHeapStart() << "]) \r\n";
 
-	// draw triangle
 	m_commandList->RSSetViewports(1, &viewport);
 	gpuComDebugStream << "RSSetViewports(1, &viewport [" << &viewport << "]) \r\n";
 	
@@ -144,12 +137,10 @@ void CommandListHandler::RecordClearScreenBuffers(ID3D12DescriptorHeap & rtvDesc
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), m_frameBufferIndex, rtvDescriptorSize);
 
-	// Clears screen
 	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 	gpuComDebugStream << "ClearRenderTargetView(rtvHandle [" << &rtvHandle << "], clearColor, 0, nullptr)\r\n";
 
-	// clear the depth/stencil buffer
 	m_commandList->ClearDepthStencilView(dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	gpuComDebugStream << "ClearDepthStencilView(dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart() ["<< &dsDescriptorHeap.GetCPUDescriptorHandleForHeapStart() << "], D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr) \r\n";
 
@@ -157,12 +148,9 @@ void CommandListHandler::RecordClearScreenBuffers(ID3D12DescriptorHeap & rtvDesc
 	gpuCommandDebug = gpuComDebugStream.str();
 }
 
-// Resets the commandlist and the commandallocator for this frame
-// Now it is OPEN for business
 void CommandListHandler::Open(int frameBufferIndex, ID3D12PipelineState& pipeline)
 {
 	std::stringstream gpuComDebugStream;
-	//gpuComDebugStream << gpuCommandDebug;	//<-- do NOT put old message in stream! (Open() indicates a new round of commands!) 
 	gpuComDebugStream << "/******************** CommandListHandler [" << m_commandList << "] :: Open() ********************/ \r\n";
 
 
@@ -179,7 +167,6 @@ void CommandListHandler::Open(int frameBufferIndex, ID3D12PipelineState& pipelin
 	}
 
 
-	// Reset of commands at the GPU and setting of the PSO
 	auto tmp = m_commandAllocators[m_frameBufferIndex];
 	hr = m_commandList->Reset(tmp, &pipeline);
 	gpuComDebugStream << "Reset(m_commandAllocators[m_frameBufferIndex [" << m_frameBufferIndex << "]] [" << m_commandAllocators[m_frameBufferIndex] << "], &pipeline [" << &pipeline << "])\r\n";
@@ -215,10 +202,6 @@ void CommandListHandler::Close() {
 void CommandListHandler::CreateCommandAllocators(const Device & device, int frameBufferCount)
 {
 	HRESULT hr;
-	// -- Create Command Allocator -- //
-	// One allocator per backbuffer, so that we may free allocators of lists not being executed on GPU.
-	// The command list associated will be direct. Not bundled.
-
 	m_commandAllocators.resize(frameBufferCount);
 	for (int i = 0; i < frameBufferCount; i++) {
 		hr = device.GetDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i]));
