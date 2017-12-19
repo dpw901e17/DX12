@@ -620,7 +620,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 		info.queryIndex = i;
 
 		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
-		globalThreadPool->AddJob(job);
+		globalThreadPool->AddThreadJob(job);
 	}
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
