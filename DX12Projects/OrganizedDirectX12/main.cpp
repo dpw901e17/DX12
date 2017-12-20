@@ -542,6 +542,7 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 void InitD3D(Window window) {
 	HRESULT hr;
 	
+	/*
 	ID3D12Debug* debugController;
 	ID3D12Debug1* debug1Controller;
 	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
@@ -554,6 +555,7 @@ void InitD3D(Window window) {
 		debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
 		debug1Controller->SetEnableGPUBasedValidation(true);
 	}
+	*/
 
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
 	Device* device = new Device(dxgiFactory);
@@ -627,6 +629,7 @@ void InitD3D(Window window) {
 		drawCommandLists.push_back(new CommandListHandler(*device, frameBufferCount));
 	}
 
+	/*
 	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
 	queryHeapDesc.Count = TestConfiguration::GetInstance().drawThreadCount;
 	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
@@ -645,7 +648,7 @@ void InitD3D(Window window) {
 	{
 		throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
 	}
-
+	*/
 	//multithreading
 	globalThreadPool = new ThreadPool<DrawCubesInfo>(TestConfiguration::GetInstance().drawThreadCount);
 }
