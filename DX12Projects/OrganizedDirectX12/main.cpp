@@ -715,22 +715,12 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
 	globalStartCommandListHandler->RecordOpen(renderTargets);
+	globalStartCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
+	globalStartCommandListHandler->RecordDrawCalls(*globalCubeContainer, numCubeIndices);
 	globalStartCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
 	globalStartCommandListHandler->Close();
 
 	
-
-	drawCommandLists[0]->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	drawCommandLists[0]->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-	drawCommandLists[0]->RecordDrawCalls(*globalCubeContainer, numCubeIndices);
-	drawCommandLists[0]->Close();
-
-
-
-	globalEndCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-	globalEndCommandListHandler->RecordClosing(renderTargets, globalQueryHeap, 1, globalQueryResult);
-	globalEndCommandListHandler->Close();
-
 	/*
 	while (!globalThreadPool->Idle())
 	{
@@ -793,16 +783,10 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 	std::vector<ID3D12CommandList*> comListVec;
 	comListVec.push_back(globalStartCommandListHandler->GetCommandList());
 
-	std::stringstream queueCommands;	//<-- for debugging..
-	for (auto& comList : drawCommandLists) {
-		comListVec.push_back(comList->GetCommandList());
-
-		queueCommands << "ID3D12CommandList: " << comList->GetCommandList() << "\r\n";
-		queueCommands << comList->GetGPUCommandDebugString();
-	}
-
+	/*
+	comListVec.push_back(drawCommandLists[0]->GetCommandList());
 	comListVec.push_back(globalEndCommandListHandler->GetCommandList());
-
+	*/
 
 	commandQueue->ExecuteCommandLists(comListVec.size(), comListVec.data());
 	hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
