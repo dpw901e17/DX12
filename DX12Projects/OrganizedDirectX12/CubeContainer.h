@@ -13,12 +13,15 @@
 
 class CubeContainer {
 public:
-	CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio);
+	CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio, ID3D12GraphicsCommandList* commandList);
 	CubeContainer(const CubeContainer& cubeContainer, const size_t startIndex, const size_t count);
 	~CubeContainer();
 
 	void UpdateFrame(int frameIndex);
-	D3D12_GPU_VIRTUAL_ADDRESS GetVirtualAddress(int cubeIndex, int frameBufferIndex) const;
+	D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetWorldMatVirtualAddress(int cubeIndex, int frameBufferIndex) const;
+	D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetViewMatVirtualAddress() const;
+	D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetProjMatVirtualAddress() const;
+
 	const std::vector<ID3D12Resource*> GetUploadHeapResources() const;
 	const DirectX::XMFLOAT4X4 GetProjectionMatrix() const;
 	const DirectX::XMFLOAT4X4 GetViewMatrix() const;
@@ -34,5 +37,7 @@ private:
 	DirectX::XMFLOAT4X4 CreateViewMatrix(Camera cam);
 	DirectX::XMFLOAT4X4 cameraViewMat;
 	DirectX::XMFLOAT4X4 cameraProjMat;
+	D3D12_GPU_VIRTUAL_ADDRESS viewVirtualAddress;
+	D3D12_GPU_VIRTUAL_ADDRESS projVirtualAddress;
 
 };

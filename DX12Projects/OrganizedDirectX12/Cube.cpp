@@ -2,7 +2,6 @@
 #include "../../scene-window-system/TestConfiguration.h"
 
 Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
-	const DirectX::XMFLOAT4X4& cameraProj, const DirectX::XMFLOAT4X4& cameraView, 
 	const RenderObject& renderObject, const float scale) : m_Scale(scale)
 {
 	HRESULT hr;
@@ -34,20 +33,13 @@ Cube::Cube(int i, std::vector<ID3D12Resource*> uploadHeapResources,
 	}
 
 	// Matrix initialization
-	cameraProjMat = cameraProj;
-	cameraViewMat = cameraView;
+	//cameraProjMat = cameraProj;
+	//cameraViewMat = cameraView;
 
 	DirectX::XMStoreFloat4x4(&cubeRotMat, DirectX::XMMatrixIdentity());
 
 	cubePosition = DirectX::XMFLOAT4(renderObject.x(), renderObject.y(), renderObject.z(), 1.0f);
 
-	/*
-	DirectX::XMVECTOR posVec = DirectX::XMLoadFloat4(&cubePosition);
-
-	auto tmpMat = DirectX::XMMatrixTranslationFromVector(posVec);
-
-	DirectX::XMStoreFloat4x4(&cubeWorldMat, tmpMat);
-	*/
 }
 
 Cube::~Cube()
@@ -86,13 +78,14 @@ void Cube::UpdateWVPMatrix(int frameBufferIndex)
 
 	// world matrix for cube 
 	DirectX::XMMATRIX worldMat = rotMat * translationMat * scaleMatrix;
-	DirectX::XMStoreFloat4x4(&cubeWorldMat, worldMat);
+	
+	//DirectX::XMStoreFloat4x4(&cubeWorldMat, worldMat);
 
 	// create wvp matrix
-	DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&cameraViewMat);
-	DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&cameraProjMat);
-	DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&cubeWorldMat) * viewMat * projMat;
-	DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(wvpMat);
+	//DirectX::XMMATRIX viewMat = DirectX::XMLoadFloat4x4(&cameraViewMat);
+	//DirectX::XMMATRIX projMat = DirectX::XMLoadFloat4x4(&cameraProjMat);
+	//DirectX::XMMATRIX wvpMat = DirectX::XMLoadFloat4x4(&cubeWorldMat) * viewMat * projMat;
+	DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(worldMat);
 	DirectX::XMStoreFloat4x4(&cubeWorldMat, transposed);
 
 	// load matrix into GPU

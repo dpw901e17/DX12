@@ -8,8 +8,7 @@
 
 class Cube {
 public:
-	Cube(int index, std::vector<ID3D12Resource*> uploadHeapResources,
-		const DirectX::XMFLOAT4X4& cameraProjMat, const DirectX::XMFLOAT4X4& cameraViewMat, 
+	Cube(int index, std::vector<ID3D12Resource*> uploadHeapResources, 
 		const RenderObject& renderObject, const float scale);
 	~Cube();
 
@@ -20,8 +19,6 @@ public:
 
 private:
 	//Matrix data
-	DirectX::XMFLOAT4X4 cameraProjMat;
-	DirectX::XMFLOAT4X4 cameraViewMat;
 	DirectX::XMFLOAT4X4 cubeWorldMat;
 	DirectX::XMFLOAT4X4 cubeRotMat;
 	DirectX::XMFLOAT4 cubePosition;

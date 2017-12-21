@@ -1,7 +1,7 @@
 #include "CubeContainer.h"
 #include <math.h>
 
-CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio)
+CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio, ID3D12GraphicsCommandList* commandList)
 {
 	HRESULT hr;
 	auto numberOfCubes = scene.renderObjects().size();
@@ -13,15 +13,49 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 		uploadHeapResources.push_back(uploadHeapResource);
 	}
 
-	cameraViewMat = CreateViewMatrix(scene.camera());
-	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
-
 	// Initialize all cubes with an index
 	auto dimSize = std::cbrt(scene.renderObjects().size());
 	auto scale = dimSize * dimSize;
 	for (auto i = 0; i < numberOfCubes; ++i) {
-		cubes.push_back(Cube(i, uploadHeapResources, cameraProjMat, cameraViewMat, scene.renderObjects()[i], 1));
+		cubes.push_back(Cube(i, uploadHeapResources, scene.renderObjects()[i], 1));
 	}
+
+
+	cameraViewMat = CreateViewMatrix(scene.camera());
+	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
+
+	sizeInBytes = constantBufferPerObjectAllignedSize * numberOfFrameBuffers;
+
+	// View matrix resource
+	D3D12_SUBRESOURCE_DATA viewMatData = {};
+	viewMatData.pData = reinterpret_cast<BYTE*>(&cameraViewMat); // pointer to our vertex array
+	viewMatData.RowPitch = sizeof(cameraViewMat); // size of all our triangle vertex data. 
+	viewMatData.SlicePitch = sizeof(cameraViewMat);
+
+
+	ID3D12Resource* uploadViewHeap = ResourceFactory::CreateUploadHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Upload Resource Heap");
+	ID3D12Resource* defaultViewHeap = ResourceFactory::CreateDefaultHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Default Resource Heap");
+	UpdateSubresources(commandList, defaultViewHeap, uploadViewHeap, 0, 0, 1, &viewMatData);
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultViewHeap, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+	viewVirtualAddress = defaultViewHeap->GetGPUVirtualAddress();
+
+
+	
+
+	// Projection matrix resource
+
+
+	D3D12_SUBRESOURCE_DATA projMatData = {};
+	projMatData.pData = reinterpret_cast<BYTE*>(&cameraProjMat); // pointer to our vertex array
+	projMatData.RowPitch = sizeof(cameraProjMat); // size of all our triangle vertex data. 
+	projMatData.SlicePitch = sizeof(cameraProjMat);
+
+
+	ID3D12Resource* uploadProjHeap = ResourceFactory::CreateUploadHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Upload Resource Heap");
+	ID3D12Resource* defaultProjHeap = ResourceFactory::CreateDefaultHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Default Resource Heap");
+		UpdateSubresources(commandList, defaultProjHeap, uploadProjHeap, 0, 0, 1, &projMatData);
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultProjHeap, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+	projVirtualAddress = defaultProjHeap->GetGPUVirtualAddress();
 }
 
 CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t startIndex, const size_t count)
@@ -34,6 +68,8 @@ CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t s
 	uploadHeapResources = cubeContainer.GetUploadHeapResources();
 	cameraViewMat = cubeContainer.GetViewMatrix();
 	cameraProjMat = cubeContainer.GetProjectionMatrix();
+	viewVirtualAddress = cubeContainer.GetViewMatVirtualAddress();
+	projVirtualAddress = cubeContainer.GetProjMatVirtualAddress();
 }
 
 CubeContainer::~CubeContainer()
@@ -48,10 +84,21 @@ void CubeContainer::UpdateFrame(int frameIndex)
 	}
 }
 
-D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetVirtualAddress(int cubeIndex, int frameBufferIndex) const
+D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetWorldMatVirtualAddress(int cubeIndex, int frameBufferIndex) const
 {
 	return cubes[cubeIndex].GetVirtualGpuAddress(frameBufferIndex);
 }
+
+D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetViewMatVirtualAddress() const
+{
+	return  viewVirtualAddress;
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS CubeContainer::GetProjMatVirtualAddress() const
+{
+	return  projVirtualAddress;
+}
+
 
 const std::vector<ID3D12Resource*> CubeContainer::GetUploadHeapResources() const
 {
@@ -77,7 +124,8 @@ DirectX::XMFLOAT4X4 CubeContainer::CreateProjectionMatrix(Camera cam, float aspe
 {
 	DirectX::XMFLOAT4X4 cameraProjMat;
 	DirectX::XMMATRIX tmpMat = DirectX::XMMatrixPerspectiveFovLH(cam.FieldOfView(), aspectRatio, cam.Near(), cam.Far());
-	DirectX::XMStoreFloat4x4(&cameraProjMat, tmpMat);
+	DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(tmpMat);
+	DirectX::XMStoreFloat4x4(&cameraProjMat, transposed);
 	return cameraProjMat;
 }
 
@@ -99,7 +147,8 @@ DirectX::XMFLOAT4X4 CubeContainer::CreateViewMatrix(Camera cam)
 	DirectX::XMVECTOR cTarg = DirectX::XMLoadFloat4(&cameraTarget);
 	DirectX::XMVECTOR cUp = DirectX::XMLoadFloat4(&cameraUp);
 	auto tmpMat = DirectX::XMMatrixLookAtLH(cPos, cTarg, cUp);
-	DirectX::XMStoreFloat4x4(&cameraViewMat, tmpMat);
+	DirectX::XMMATRIX transposed = DirectX::XMMatrixTranspose(tmpMat);
+	DirectX::XMStoreFloat4x4(&cameraViewMat, transposed);
 
 	return cameraViewMat;
 

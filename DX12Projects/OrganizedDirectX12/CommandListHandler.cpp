@@ -46,7 +46,7 @@ void CommandListHandler::SetState(ID3D12Resource * renderTargets[], ID3D12Descri
 	m_commandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	//set descriptor table index 1 of the root signature. (corresponding to parameter order defined in the signature)
-	m_commandList->SetGraphicsRootDescriptorTable(1, mainDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+	m_commandList->SetGraphicsRootDescriptorTable(3, mainDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
 	// draw triangle
 	m_commandList->RSSetViewports(1, &viewport);
@@ -66,9 +66,12 @@ void CommandListHandler::RecordDrawCalls(const CubeContainer& cubeContainer, int
 		m_commandList->BeginQuery(queryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, queryIndex);
 	}
 
+	m_commandList->SetGraphicsRootConstantBufferView(1, cubeContainer.GetViewMatVirtualAddress());
+	m_commandList->SetGraphicsRootConstantBufferView(2, cubeContainer.GetProjMatVirtualAddress());
+
 	auto cubeCount = cubeContainer.GetCubes().size();
 	for (auto i = 0; i < cubeCount; ++i) {
-		m_commandList->SetGraphicsRootConstantBufferView(0, cubeContainer.GetVirtualAddress(i, m_frameBufferIndex));
+		m_commandList->SetGraphicsRootConstantBufferView(0, cubeContainer.GetWorldMatVirtualAddress(i, m_frameBufferIndex));
 		m_commandList->DrawIndexedInstanced(numCubeIndices, 1, 0, 0, 0);
 	}
 

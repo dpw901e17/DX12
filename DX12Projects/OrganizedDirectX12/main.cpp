@@ -309,9 +309,17 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	// root descriptor explaining where to find data in this root parameter
 	HRESULT hr;
 
-	D3D12_ROOT_DESCRIPTOR rootCBVDescriptor;
-	rootCBVDescriptor.RegisterSpace = 0;
-	rootCBVDescriptor.ShaderRegister = 0;
+	D3D12_ROOT_DESCRIPTOR rootCBVDescriptorWorld;
+	rootCBVDescriptorWorld.RegisterSpace = 0;
+	rootCBVDescriptorWorld.ShaderRegister = 0;
+
+	D3D12_ROOT_DESCRIPTOR rootCBVDescriptorView;
+	rootCBVDescriptorView.RegisterSpace = 0;
+	rootCBVDescriptorView.ShaderRegister = 1;
+
+	D3D12_ROOT_DESCRIPTOR rootCBVDescriptorProj;
+	rootCBVDescriptorProj.RegisterSpace = 0;
+	rootCBVDescriptorProj.ShaderRegister = 2;
 
 	// create a descriptor range (descriptor table) and fill it out
 	// this is a range of descriptors inside a descriptor heap
@@ -327,14 +335,22 @@ ID3D12RootSignature*  CreateRootSignature(const Device& device) {
 	descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges); //one texture, one range
 	descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; //points to the start of the range array
 
-	D3D12_ROOT_PARAMETER rootParameters[2]; // two root parameters now! cube matrixes and texture
+	D3D12_ROOT_PARAMETER rootParameters[4]; // two root parameters now! cube matrixes and texture
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; //constant buffer for view root descriptor
-	rootParameters[0].Descriptor = rootCBVDescriptor; //root descriptor for root parameter
+	rootParameters[0].Descriptor = rootCBVDescriptorWorld; //root descriptor for root parameter
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // To use for the vertex shader.
 
-	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootParameters[1].DescriptorTable = descriptorTable;
-	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // to use for the pixel shader
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; 
+	rootParameters[1].Descriptor = rootCBVDescriptorView;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; 
+
+	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[2].Descriptor = rootCBVDescriptorProj;
+	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[3].DescriptorTable = descriptorTable;
+	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // to use for the pixel shader
 
 	//Static sampler
 	//For bordercolour and no mipmap.
@@ -591,7 +607,7 @@ void InitD3D(Window window) {
 	indexBufferView = CreateIndexBuffer(*device, commandList);
 	CreateStencilBuffer(*device);
 
-	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene, window.aspectRatio());
+	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene, window.aspectRatio(), commandList);
 
 	CreateTexture(*device, commandList);
 
