@@ -33,7 +33,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	float z = camDistance + base + camera.Near();
 	
 	camera.SetPosition({ 0.0f, 0.0f, z, 1.0f });
-	camera.SetFar(z + base + camera.Near());
+	auto magicFactor = 2;
+	camera.SetFar(magicFactor * (z + base + camera.Near()));
 	auto tmpScene = Scene(camera, cubeCountPerDim, paddingFactor);
 
 	basicBoxScene = &tmpScene;
