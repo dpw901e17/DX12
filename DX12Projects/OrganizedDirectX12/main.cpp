@@ -8,6 +8,9 @@
 #include "../../scene-window-system/WmiAccess.h"
 #include "../../scene-window-system/TestConfiguration.h"
 
+#define TEST_ENABLE_DEBUG_LAYER false
+
+std::vector<CubeContainer*> dbugTestCubeContainers;
 
 using namespace DirectX;
 
@@ -102,42 +105,44 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+		else {
 
-		auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
-		nanoSec += delta;
-		secondTrackerInNanoSec += delta;
-		lastUpdate = Clock::now();
+			auto delta = std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - lastUpdate).count();
+			nanoSec += delta;
+			secondTrackerInNanoSec += delta;
+			lastUpdate = Clock::now();
 
-		//has a (multiplicia of) second(s) passed?
-		if (secondTrackerInNanoSec > 1000000000) {
-			auto title = "FPS: " + std::to_string(fps);
-			window->SetTitle(title.c_str());
-			secondTrackerInNanoSec %= 1000000000;
-			oldfps = fps;
-			fps = 0;
-		}
-
-		if (testConfig.openHardwareMonitorData && 
-			nanoSec / 1000000 > probeCount * testConfig.probeInterval) 
-		{
-			//QueryItem queries one item from WMI, which is separated into multiple items (put in a vector here)
-			auto items = wmiAccesor.QueryItem("sensor", probeProperties, 3);
-
-			//each item needs a timestamp and an id ( = probeCount) and the last completely measured FPS
-			for (auto& item : items) {
-				item.Timestamp = std::to_string(nanoSec);
-				item.Id = std::to_string(probeCount);
-				item.FPS = std::to_string(oldfps);
-				wmiDataCollection.Add(item);
+			//has a (multiplicia of) second(s) passed?
+			if (secondTrackerInNanoSec > 1000000000) {
+				auto title = "FPS: " + std::to_string(fps);
+				window->SetTitle(title.c_str());
+				secondTrackerInNanoSec %= 1000000000;
+				oldfps = fps;
+				fps = 0;
 			}
 
-			++probeCount;
-		}
+			if (testConfig.openHardwareMonitorData &&
+				nanoSec / 1000000 > probeCount * testConfig.probeInterval)
+			{
+				//QueryItem queries one item from WMI, which is separated into multiple items (put in a vector here)
+				auto items = wmiAccesor.QueryItem("sensor", probeProperties, 3);
 
-		//run matrices
-		Update();
-		Render(*globalSwapchain, testConfig);
-		++fps;
+				//each item needs a timestamp and an id ( = probeCount) and the last completely measured FPS
+				for (auto& item : items) {
+					item.Timestamp = std::to_string(nanoSec);
+					item.Id = std::to_string(probeCount);
+					item.FPS = std::to_string(oldfps);
+					wmiDataCollection.Add(item);
+				}
+
+				++probeCount;
+			}
+
+			//run matrices
+			Update();
+			Render(*globalSwapchain, testConfig);
+			++fps;
+		}
 	}
 
 	if (testConfig.pipelineStatistics) {
@@ -541,18 +546,20 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 
 void InitD3D(Window window) {
 	HRESULT hr;
+
+	if(TEST_ENABLE_DEBUG_LAYER) {
+		ID3D12Debug* debugController;
+		ID3D12Debug1* debug1Controller;
+		hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+		if (FAILED(hr)) {
+			throw std::runtime_error("Failed to initialize debug controller!");
 	
-	ID3D12Debug* debugController;
-	ID3D12Debug1* debug1Controller;
-	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
-	if (FAILED(hr)) {
-		throw std::runtime_error("Failed to initialize debug controller!");
-	
-	}
-	else if (SUCCEEDED(hr)) {
-		debugController->EnableDebugLayer();
-		debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
-		debug1Controller->SetEnableGPUBasedValidation(true);
+		}
+		else if (SUCCEEDED(hr)) {
+			debugController->EnableDebugLayer();
+			debugController->QueryInterface(IID_PPV_ARGS(&debug1Controller));
+			debug1Controller->SetEnableGPUBasedValidation(true);
+		}
 	}
 
 	IDXGIFactory4* dxgiFactory = CreateDXGIFactory();
@@ -587,6 +594,14 @@ void InitD3D(Window window) {
 	CreateStencilBuffer(*device);
 
 	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene, window.aspectRatio());
+
+	/**************DEBUG TEST ***********/
+	auto stride = basicBoxScene->renderObjects().size() / TestConfiguration::GetInstance().drawThreadCount;
+	for (auto i = 0; i < TestConfiguration::GetInstance().drawThreadCount; ++i) {
+		auto cubeCount = i == TestConfiguration::GetInstance().drawThreadCount - 1 ? stride + (stride % TestConfiguration::GetInstance().drawThreadCount) : stride;
+		dbugTestCubeContainers.push_back(new CubeContainer(*globalCubeContainer, i * stride, cubeCount));
+	}
+	/***********END DEBUG TEST *********/
 
 	CreateTexture(*device, commandList);
 
@@ -627,25 +642,29 @@ void InitD3D(Window window) {
 		drawCommandLists.push_back(new CommandListHandler(*device, frameBufferCount));
 	}
 
-	D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
-	queryHeapDesc.Count = TestConfiguration::GetInstance().drawThreadCount;
-	queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
+	if (TestConfiguration::GetInstance().pipelineStatistics) {
 
-	if (FAILED(device->GetDevice()->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&globalQueryHeap)))) {
-		throw std::runtime_error("Could not create query heap (for pipeline statistics)!");
+		D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+		queryHeapDesc.Count = TestConfiguration::GetInstance().drawThreadCount;
+		queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_PIPELINE_STATISTICS;
+
+		if (FAILED(device->GetDevice()->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&globalQueryHeap)))) {
+			throw std::runtime_error("Could not create query heap (for pipeline statistics)!");
+		}
+
+		if (FAILED(device->GetDevice()->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS) * TestConfiguration::GetInstance().drawThreadCount),
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&globalQueryResult))))
+		{
+			throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
+		}
+
 	}
-
-	if (FAILED(device->GetDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK), 
-		D3D12_HEAP_FLAG_NONE, 
-		&CD3DX12_RESOURCE_DESC::Buffer(sizeof(D3D12_QUERY_DATA_PIPELINE_STATISTICS) * TestConfiguration::GetInstance().drawThreadCount),
-		D3D12_RESOURCE_STATE_COPY_DEST, 
-		nullptr, 
-		IID_PPV_ARGS(&globalQueryResult)))) 
-	{
-		throw std::runtime_error("Could not create committed ressource for pipeline statistics (query result)!");
-	}
-
+	
 	//multithreading
 	globalThreadPool = new ThreadPool<DrawCubesInfo>(TestConfiguration::GetInstance().drawThreadCount);
 }
@@ -673,7 +692,6 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
 	//std::vector<std::thread> threads;
-
 	for (auto i = 0; i < threadCount; ++i) {
 
 		DrawCubesInfo info = {};
@@ -705,7 +723,7 @@ void UpdatePipeline(TestConfiguration testConfig)
 		info.queryIndex = i;
 
 		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
-		globalThreadPool->AddJob(job);
+		 globalThreadPool->AddThreadJob(job);
 	}
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
@@ -719,33 +737,9 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 	while (!globalThreadPool->Idle())
 	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(TEST_THREAD_JOB_WAIT_TIME));
+		//std::this_thread::sleep_for(std::chrono::milliseconds(TEST_THREAD_JOB_WAIT_TIME));
 	}
-
-	/*
-	auto job0 = [&cubeCount]() {
-		globalCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
-		globalCommandListHandler->RecordOpen(renderTargets);
-		globalCommandListHandler->RecordClearScreenBuffers(*rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap);
-		globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-		globalCommandListHandler->GetCommandList()->BeginQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-		globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, 0, cubeCount / 2), numCubeIndices);
-		globalCommandListHandler->GetCommandList()->EndQuery(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0);
-		globalCommandListHandler->GetCommandList()->ResolveQueryData(globalQueryHeap, D3D12_QUERY_TYPE_PIPELINE_STATISTICS, 0, 1, globalQueryResult, 0);
-		globalCommandListHandler->Close();
-	};
-
-	auto job1 = [&cubeCount]() {
-		globalCommandListHandler->Open(frameIndex, *globalPipeline2->GetPipelineStateObject());
-		globalCommandListHandler->SetState(renderTargets, *rtvDescriptorHeap, rtvDescriptorSize, *dsDescriptorHeap, *rootSignature, *mainDescriptorHeap, viewport, scissorRect, vertexBufferView, indexBufferView);
-		globalCommandListHandler->RecordDrawCalls(CubeContainer(*globalCubeContainer, cubeCount / 2, cubeCount / 2 + cubeCount % 2), numCubeIndices);
-		globalCommandListHandler->RecordClosing(renderTargets);
-		globalCommandListHandler->Close();
-	};
-
-	std::thread t0(job0);
-	std::thread t1(job1);
-	*/
+	auto dbug = "insert breakpoint here...";
 }
 
 void DrawCubes(DrawCubesInfo& info)
@@ -764,6 +758,7 @@ void DrawCubes(DrawCubesInfo& info)
 		*info.indexBufferView
 	);
 	info.commandListHandler->RecordDrawCalls(CubeContainer(*info.globalCubeContainer, info.drawStartIndex, info.cubeCount), info.numCubeIndices, globalQueryHeap, info.queryIndex);
+	//info.commandListHandler->RecordDrawCalls(*dbugTestCubeContainers[info.queryIndex], info.numCubeIndices, globalQueryHeap, info.queryIndex);
 	info.commandListHandler->Close();
 }
 
@@ -777,12 +772,8 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 	std::vector<ID3D12CommandList*> comListVec;
 	comListVec.push_back(globalStartCommandListHandler->GetCommandList());
 
-	std::stringstream queueCommands;	//<-- for debugging..
 	for (auto& comList : drawCommandLists) {
 		comListVec.push_back(comList->GetCommandList());
-
-		queueCommands << "ID3D12CommandList: " << comList->GetCommandList() << "\r\n";
-		queueCommands << comList->GetGPUCommandDebugString();
 	}
 
 	comListVec.push_back(globalEndCommandListHandler->GetCommandList());

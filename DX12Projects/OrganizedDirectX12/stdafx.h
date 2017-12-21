@@ -255,8 +255,6 @@ void DrawCubes(DrawCubesInfo& info);
 
 ThreadPool<DrawCubesInfo>* globalThreadPool;
 
-typedef void (*RenderJob) (DrawCubesInfo&);
-
 template<typename T>
 auto force_string(T arg) {
 	std::stringstream ss;

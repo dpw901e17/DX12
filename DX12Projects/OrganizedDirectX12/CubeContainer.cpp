@@ -26,8 +26,9 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 
 CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t startIndex, const size_t count)
 {
+	cubes.reserve(count);
 	for (auto i = 0; i < count; ++i) {
-		cubes.push_back(cubeContainer.cubes.at(i+startIndex));
+		cubes.push_back(cubeContainer.cubes[i+startIndex]);
 	}
 
 	uploadHeapResources = cubeContainer.GetUploadHeapResources();
@@ -67,7 +68,7 @@ const DirectX::XMFLOAT4X4 CubeContainer::GetViewMatrix() const
 	return cameraViewMat;
 }
 
-const std::vector<Cube> CubeContainer::GetCubes() const
+const std::vector<Cube>& CubeContainer::GetCubes() const
 {
 	return cubes;
 }
