@@ -234,6 +234,7 @@ struct DrawCubesInfo
 	CommandListHandler* commandListHandler;
 	PipelineStateHandler* pipelineStateHandler;
 	size_t cubeCount;
+	size_t cubeStride;
 	CubeContainer* globalCubeContainer;
 	ID3D12Resource** renderTargets;	//TODO: arbitrary number of backbuffers?
 	ID3D12DescriptorHeap* rtvDescriptorHeap;

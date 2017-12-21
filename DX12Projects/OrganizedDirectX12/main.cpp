@@ -10,8 +10,6 @@
 
 #define TEST_ENABLE_DEBUG_LAYER false
 
-std::vector<CubeContainer*> dbugTestCubeContainers;
-
 using namespace DirectX;
 
 int WINAPI WinMain(HINSTANCE hInstance,
@@ -488,7 +486,7 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 	int imageBytesPerRow;
 	BYTE* imageData;
 
-	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, "box.jpg", imageBytesPerRow);
+	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, "logo-ritter-sport.png", imageBytesPerRow);
 
 	//check if there is data in imageSize;
 	if (imageSize <= 0)
@@ -595,14 +593,6 @@ void InitD3D(Window window) {
 
 	globalCubeContainer = new CubeContainer(*device, frameBufferCount, *basicBoxScene, window.aspectRatio());
 
-	/**************DEBUG TEST ***********/
-	auto stride = basicBoxScene->renderObjects().size() / TestConfiguration::GetInstance().drawThreadCount;
-	for (auto i = 0; i < TestConfiguration::GetInstance().drawThreadCount; ++i) {
-		auto cubeCount = i == TestConfiguration::GetInstance().drawThreadCount - 1 ? stride + (stride % TestConfiguration::GetInstance().drawThreadCount) : stride;
-		dbugTestCubeContainers.push_back(new CubeContainer(*globalCubeContainer, i * stride, cubeCount));
-	}
-	/***********END DEBUG TEST *********/
-
 	CreateTexture(*device, commandList);
 
 	// Now we execute the command list to upload the initial assets (cube data)
@@ -691,21 +681,25 @@ void UpdatePipeline(TestConfiguration testConfig)
 	auto cubeCount = basicBoxScene->renderObjects().size();
 
 	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
+	auto cubeStride = cubeCount / threadCount;
+
 	//std::vector<std::thread> threads;
 	for (auto i = 0; i < threadCount; ++i) {
-
+		
 		DrawCubesInfo info = {};
 		info.commandListHandler = drawCommandLists[i];
-
+	
 		//last thread takes its share of cubes + the remainder after integer division
 		if (i == threadCount - 1) {
-			info.cubeCount = cubeCount / threadCount + cubeCount % threadCount;
+			info.cubeCount = cubeStride + cubeCount % threadCount;
 		}
 		else {
-			info.cubeCount = cubeCount / threadCount;
+			info.cubeCount = cubeStride;
 		}
 
-		info.drawStartIndex = cubeCount / threadCount * i;
+		info.cubeStride = cubeStride;
+
+		info.drawStartIndex = cubeStride * i;
 		info.dsDescriptorHeap = dsDescriptorHeap;
 		info.frameIndex = frameIndex;
 		info.globalCubeContainer = globalCubeContainer;
@@ -758,7 +752,6 @@ void DrawCubes(DrawCubesInfo& info)
 		*info.indexBufferView
 	);
 	info.commandListHandler->RecordDrawCalls(CubeContainer(*info.globalCubeContainer, info.drawStartIndex, info.cubeCount), info.numCubeIndices, globalQueryHeap, info.queryIndex);
-	//info.commandListHandler->RecordDrawCalls(*dbugTestCubeContainers[info.queryIndex], info.numCubeIndices, globalQueryHeap, info.queryIndex);
 	info.commandListHandler->Close();
 }
 
