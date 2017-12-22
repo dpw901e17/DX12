@@ -3,8 +3,9 @@ cls
 mkdir ..\x64\Debug
 mkdir ..\x64\Release
 
-copy /Y record.bat ..\x64\Debug\
-copy /Y record.bat ..\x64\Release\
+copy /Y *.bat ..\x64\Debug\
+copy /Y *.bat ..\x64\Release\
+
 
 copy /Y *.hlsl ..\x64\Debug\
 copy /Y *.hlsl ..\x64\Release\

@@ -81,6 +81,9 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 		wmiAccesor.Connect("OpenHardwareMonitor");
 	}
 
+	std::stringstream fpsCsv;
+	fpsCsv << "FPS\n";
+
 	int fps = 0;	//<-- this one is incremented each frame (and reset once a second)
 	int oldfps = 0;	//<-- this one is recorded by the probe (and set once per second)
 	size_t secondTrackerInNanoSec = 0;
@@ -118,6 +121,10 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 				secondTrackerInNanoSec %= 1000000000;
 				oldfps = fps;
 				fps = 0;
+
+				if (TestConfiguration::GetInstance().recordFPS) {
+					fpsCsv << oldfps << "\n";
+				}
 			}
 
 			if (testConfig.openHardwareMonitorData &&
@@ -193,6 +200,10 @@ void mainloop(DataCollection<WMIDataItem>& wmiDataCollection, DataCollection<Pip
 	if (testConfig.exportCsv) {
 		auto csvStr = TestConfiguration::GetInstance().MakeString(";");
 		SaveToFile("conf_" + fname + ".csv", csvStr);
+	}
+
+	if (testConfig.recordFPS) {
+		SaveToFile("fps_" + fname + ".csv", fpsCsv.str());
 	}
 
 	delete localNow;

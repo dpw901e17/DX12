@@ -21,7 +21,7 @@ REM Perfmonitor
 logman delete dxd12basetutorialPerfData
 logman create counter dxd12basetutorialPerfData -cf CollectWinPerfmonDataCfg.cfg -f csv -o "%cd%\perfdata" -si 1
 logman start dxd12basetutorialPerfData -as
-%exename%.exe -sec %seconds% %drawArg%
+%exename%.exe -sec %seconds% -fps %drawArg%
 logman stop dxd12basetutorialPerfData 
 
 REM Move files to data directory
@@ -34,4 +34,5 @@ GOTO :EOF
  move data_*.csv data\%1\ohmon_%1.csv
  move stat_*.csv data\%1\pipeline_%1.csv
  move conf_*.csv data\%1\
+ move fps_*.csv data\%1\fps_%1.csv
  GOTO :EOF
