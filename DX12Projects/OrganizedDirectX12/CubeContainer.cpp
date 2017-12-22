@@ -4,8 +4,9 @@
 CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, const Scene& scene, float aspectRatio, ID3D12GraphicsCommandList* commandList)
 {
 	HRESULT hr;
+	auto allignment = constantBufferPerObjectAllignedSize;
 	auto numberOfCubes = scene.renderObjects().size();
-	auto sizeInBytes = constantBufferPerObjectAllignedSize * numberOfCubes;
+	auto sizeInBytes = allignment * numberOfCubes;
 
 	for (int i = 0; i < numberOfFrameBuffers; ++i) {
 		// create resource for cube(s)
@@ -21,41 +22,32 @@ CubeContainer::CubeContainer(const Device & device, int numberOfFrameBuffers, co
 	}
 
 
+	
 	cameraViewMat = CreateViewMatrix(scene.camera());
 	cameraProjMat = CreateProjectionMatrix(scene.camera(), aspectRatio);
 
-	sizeInBytes = constantBufferPerObjectAllignedSize * numberOfFrameBuffers;
 
-	// View matrix resource
-	D3D12_SUBRESOURCE_DATA viewMatData = {};
-	viewMatData.pData = reinterpret_cast<BYTE*>(&cameraViewMat); // pointer to our vertex array
-	viewMatData.RowPitch = sizeof(cameraViewMat); // size of all our triangle vertex data. 
-	viewMatData.SlicePitch = sizeof(cameraViewMat);
+	// Insert matrixes into byte array
+	auto matSize = sizeof(DirectX::XMFLOAT4X4);
+	BYTE* viewBytes = reinterpret_cast<BYTE*>(&cameraViewMat);
+	BYTE* projBytes = reinterpret_cast<BYTE*>(&cameraProjMat);
+	BYTE bytes[(sizeof(DirectX::XMFLOAT4X4) + 255 & ~255) * 2] = {};
+	memcpy(bytes, viewBytes, matSize);
+	memcpy(bytes + allignment, projBytes, matSize);
 
+	// Make subresource
+	D3D12_SUBRESOURCE_DATA matData = {};
+	matData.pData = bytes; 
 
-	ID3D12Resource* uploadViewHeap = ResourceFactory::CreateUploadHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Upload Resource Heap");
-	ID3D12Resource* defaultViewHeap = ResourceFactory::CreateDefaultHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Default Resource Heap");
-	UpdateSubresources(commandList, defaultViewHeap, uploadViewHeap, 0, 0, 1, &viewMatData);
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultViewHeap, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
-	viewVirtualAddress = defaultViewHeap->GetGPUVirtualAddress();
+	// Move data into default heap
+	ID3D12Resource* uploadHeap = ResourceFactory::CreateUploadHeap(device, allignment * 2, L"Constant Buffer Upload Resource Heap");
+	ID3D12Resource* defaultHeap = ResourceFactory::CreateDefaultHeap(device, allignment * 2, L"Constant Buffer Default Resource Heap");
+	UpdateSubresources(commandList, defaultHeap, uploadHeap, 0, 0, 1, &matData);
+	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultHeap, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
-
-	
-
-	// Projection matrix resource
-
-
-	D3D12_SUBRESOURCE_DATA projMatData = {};
-	projMatData.pData = reinterpret_cast<BYTE*>(&cameraProjMat); // pointer to our vertex array
-	projMatData.RowPitch = sizeof(cameraProjMat); // size of all our triangle vertex data. 
-	projMatData.SlicePitch = sizeof(cameraProjMat);
-
-
-	ID3D12Resource* uploadProjHeap = ResourceFactory::CreateUploadHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Upload Resource Heap");
-	ID3D12Resource* defaultProjHeap = ResourceFactory::CreateDefaultHeap(device, constantBufferPerObjectAllignedSize, L"Constant Buffer Default Resource Heap");
-		UpdateSubresources(commandList, defaultProjHeap, uploadProjHeap, 0, 0, 1, &projMatData);
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultProjHeap, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
-	projVirtualAddress = defaultProjHeap->GetGPUVirtualAddress();
+	// Create pointers into default heap
+	viewVirtualAddress = defaultHeap->GetGPUVirtualAddress();
+	projVirtualAddress = defaultHeap->GetGPUVirtualAddress() + allignment;
 }
 
 CubeContainer::CubeContainer(const CubeContainer & cubeContainer, const size_t startIndex, const size_t count)
