@@ -514,7 +514,7 @@ void CreateTexture(const Device& device, ID3D12GraphicsCommandList* cList) {
 	int imageBytesPerRow;
 	BYTE* imageData;
 
-	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, "logo-ritter-sport.png", imageBytesPerRow);
+	int imageSize = LoadImageDataFromFile(&imageData, textureDesc, "texture.png", imageBytesPerRow);
 
 	//check if there is data in imageSize;
 	if (imageSize <= 0)
