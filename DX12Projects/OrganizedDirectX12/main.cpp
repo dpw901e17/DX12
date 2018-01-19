@@ -608,12 +608,16 @@ void InitD3D(Window window) {
 
 	ShaderHandler* shaderHandler = new ShaderHandler(L"VertexShader.hlsl", L"PixelShader.hlsl");
 	ShaderHandler* shaderHandler2 = new ShaderHandler(L"VertexShader.hlsl", L"RedPixelShader.hlsl");
+	ShaderHandler* shaderHandler3 = new ShaderHandler(L"VertexShader.hlsl", L"SkullPixelShader.hlsl");
 
 	//pipeline
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = inputLayout();
 	globalPipeline = new PipelineStateHandler(*device, *shaderHandler, inputLayoutDesc, sampleDesc, *rootSignature);
 	globalPipeline2 = new PipelineStateHandler(*device, *shaderHandler2, inputLayoutDesc, sampleDesc, *rootSignature);
 
+#ifdef TEST_USE_SKULL
+	globalPipeline = new PipelineStateHandler(*device, *shaderHandler3, inputLayoutDesc, sampleDesc, *rootSignature);
+#endif
 
 	vertexBufferView = CreateVertexBuffer(*device, commandList);
 	indexBufferView = CreateIndexBuffer(*device, commandList);

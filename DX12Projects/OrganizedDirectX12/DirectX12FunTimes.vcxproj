@@ -136,6 +136,8 @@
     <ClInclude Include="CubeContainer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Device.h" />
+    <ClInclude Include="IndexCube.h" />
+    <ClInclude Include="IndexSkull.h" />
     <ClInclude Include="PipelineStateHandler.h" />
     <ClInclude Include="ResourceFactory.h" />
     <ClInclude Include="SafeRelease.h" />
@@ -143,6 +145,8 @@
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="SwapChainHandler.h" />
+    <ClInclude Include="VertexCube.h" />
+    <ClInclude Include="VertexSkull.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CommandListHandler.cpp" />
@@ -166,6 +170,10 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="SkullPixelShader.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="VertexShader.hlsl">

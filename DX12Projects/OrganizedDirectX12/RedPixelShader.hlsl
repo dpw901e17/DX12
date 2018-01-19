@@ -5,6 +5,7 @@ struct VS_OUTPUT
 {
 	float4 pos: SV_POSITION;
 	float2 texCoord: TEXCOORD;
+	float4 posCopy: POSITION;
 };
 
 float4 main(VS_OUTPUT input) : SV_TARGET

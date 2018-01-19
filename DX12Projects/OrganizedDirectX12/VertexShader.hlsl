@@ -8,6 +8,7 @@ struct VS_OUTPUT
 {
 	float4 pos: SV_POSITION;
 	float2 texCoord: TEXCOORD;
+	float4 posCopy: POSITION;
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -31,5 +32,6 @@ VS_OUTPUT main(VS_INPUT input)
 
 	output.pos = mul(input.pos, mul(worldMat, mul(viewMat, projectionMat)));
 	output.texCoord = input.texCoord;
+	output.posCopy = input.pos;
 	return output;
 }

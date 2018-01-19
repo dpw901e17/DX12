@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\VertexData">
+      <UniqueIdentifier>{db37ad76-9326-4af6-bd4b-a03351df55c8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -50,6 +53,18 @@
     </ClInclude>
     <ClInclude Include="CommandListHandler.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IndexCube.h">
+      <Filter>Header Files\VertexData</Filter>
+    </ClInclude>
+    <ClInclude Include="IndexSkull.h">
+      <Filter>Header Files\VertexData</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexCube.h">
+      <Filter>Header Files\VertexData</Filter>
+    </ClInclude>
+    <ClInclude Include="VertexSkull.h">
+      <Filter>Header Files\VertexData</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -89,6 +104,9 @@
       <Filter>Resource Files</Filter>
     </FxCompile>
     <FxCompile Include="RedPixelShader.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
+    <FxCompile Include="SkullPixelShader.hlsl">
       <Filter>Resource Files</Filter>
     </FxCompile>
   </ItemGroup>
