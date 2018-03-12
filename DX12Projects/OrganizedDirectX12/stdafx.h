@@ -21,7 +21,7 @@
 #include "../../scene-window-system/Scene.h"
 #include "../../scene-window-system/TestConfiguration.h"
 #include "../../scene-window-system/WmiAccess.h"
-#include "../../scene-window-system/ThreadPool.h"
+#include "../../scene-window-system/ThreadPool.hpp"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -144,7 +144,7 @@ struct Vertex {
 };
 
 //vertex data: cube
-#define TEST_USE_SKULL
+#define TEST_USE_CUBE
 
 #include "VertexCube.h"
 #include "VertexSkull.h"
@@ -198,7 +198,7 @@ struct DrawCubesInfo
 
 void DrawCubes(DrawCubesInfo& info);
 
-ThreadPool<DrawCubesInfo>* globalThreadPool;
+ThreadPool* globalThreadPool;
 
 template<typename T>
 auto force_string(T arg) {

@@ -688,7 +688,7 @@ void InitD3D(Window window) {
 	}
 	
 	//multithreading
-	globalThreadPool = new ThreadPool<DrawCubesInfo>(TestConfiguration::GetInstance().drawThreadCount);
+	globalThreadPool = new ThreadPool(TestConfiguration::GetInstance().drawThreadCount);
 }
 
 void Update()
@@ -714,6 +714,8 @@ void UpdatePipeline(TestConfiguration testConfig)
 
 	auto threadCount = TestConfiguration::GetInstance().drawThreadCount;
 	auto cubeStride = cubeCount / threadCount;
+	std::vector<std::future<void>> futures;
+
 
 	//std::vector<std::thread> threads;
 	for (auto i = 0; i < threadCount; ++i) {
@@ -748,8 +750,8 @@ void UpdatePipeline(TestConfiguration testConfig)
 		info.viewport = viewport;
 		info.queryIndex = i;
 
-		ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
-		 globalThreadPool->AddThreadJob(job);
+		//ThreadJob<DrawCubesInfo> job = ThreadJob<DrawCubesInfo>(DrawCubes, info);
+		futures.push_back(globalThreadPool->enqueue(DrawCubes, info));
 	}
 
 	globalStartCommandListHandler->Open(frameIndex, *globalPipeline->GetPipelineStateObject());
@@ -761,9 +763,9 @@ void UpdatePipeline(TestConfiguration testConfig)
 	globalEndCommandListHandler->RecordClosing(renderTargets, globalQueryHeap, threadCount, globalQueryResult);
 	globalEndCommandListHandler->Close();
 
-	while (!globalThreadPool->Idle())
+	for (auto& future : futures) 
 	{
-		//std::this_thread::sleep_for(std::chrono::milliseconds(TEST_THREAD_JOB_WAIT_TIME));
+		future.wait();
 	}
 	auto dbug = "insert breakpoint here...";
 }
@@ -812,9 +814,11 @@ void Render(SwapChainHandler swapChainHandler, TestConfiguration testConfig)
 		throw std::runtime_error("Failed in creating signal on commandQueue");
 	}
 
+	using namespace std::chrono_literals;
+	//std::this_thread::sleep_for(2ms);
+
 	hr = swapChainHandler.GetSwapChain()->Present(0, 0);
 
-	
 	if (FAILED(hr))
 	{
 		hr = globalDevice->GetDevice()->GetDeviceRemovedReason();
